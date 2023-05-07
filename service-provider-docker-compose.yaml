@@ -8,7 +8,7 @@ services:
     ports:
       - 8003:5000
     depends_on:
-      - dataplug
+      - db
     networks:
       - network
 
@@ -39,7 +39,6 @@ services:
       - DB_HOST=db
       - DB_PORT=5432
 
-  
   controller:
     build:
       context: "./nsf-service-provider-controller"
