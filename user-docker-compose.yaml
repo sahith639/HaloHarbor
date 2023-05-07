@@ -22,6 +22,7 @@ services:
       - dataplug_db
     networks:
       - network
+    env_file: "./progressive/employee/dataplug/.env"
     environment:
       USER_AGENT_CONTROLLER_BASE_URL: http://controller:8031
       SERVICE_PROVIDER_AGENT_BASE_URL: ${SERVICE_PROVIDER_AGENT_BASE_URL} # TODO remove this? I don't think user-side should be communicating directly with service provider (outside of invitations).
