@@ -2,7 +2,25 @@ version: "3.9"
 name: nsf-user-employee-demo
 services:
 
-  # TODO employee frontend
+  employee_frontend:
+    build: "./progressive/employee/frontend"
+    container_name: employee-frontend
+    ports:
+      - 8002:3000
+    depends_on:
+      - dataplug
+    networks:
+      - network
+
+  employer_frontend:
+    build: "./progressive/manager/employer front end"
+    container_name: employer-frontend
+    ports:
+      - 8003:5000
+    depends_on:
+      - dataplug
+    networks:
+      - network
 
   dataplug:
     build: "./progressive/employee/dataplug/"
