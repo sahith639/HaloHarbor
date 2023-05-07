@@ -1,0 +1,86 @@
+version: "3.9"
+name: nsf-service-provider-employer-demo
+services:
+
+  # TODO employer frontend
+
+  db:
+    image: postgres
+    container_name: employer-db
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: mysecretpassword
+
+  web:
+    build: "./progressive/manager/dashboard server/django_backend/"
+    container_name: employer-backend
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+    volumes:
+      - "./progressive/manager/dashboard server/django_backend/:/app"
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - DB_NAME=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=mysecretpassword
+      - DB_HOST=db
+      - DB_PORT=5432
+
+  
+  controller:
+    build:
+      context: "./nsf-service-provider-controller"
+      dockerfile: ./demo/Dockerfile
+    container_name: service-provider-controller
+    ports:
+      - 8081:8081
+    depends_on:
+      - acapy_agent
+    networks:
+      - network
+    environment:
+      AGENT_URL: http://acapy_agent:8021
+      BACKEND_API_HOST: http://web
+      BACKEND_API_PORT: 8000
+  
+  acapy_agent:
+    build:
+      context: "./nsf-acapy"
+      dockerfile: ./nsf-demo/nsf-demo.Dockerfile
+    container_name: service-provider-acapy-agent
+    ports:
+      - 8021:8021
+      - 8020:8020
+    depends_on:
+     - acapy_wallet_db
+    networks:
+      - network
+    command: start --arg-file "//service-provider-agent-args.yaml" --wallet-storage-config '{"url":"acapy_wallet_db:5432","max_connections":5, "wallet_scheme":"DatabasePerWallet"}' --wallet-storage-creds '{"account":"postgres","password":"postgres","admin_account":"postgres","admin_password":"postgres"}'
+  
+  acapy_wallet_db:
+    image: postgres:14.1-alpine
+    container_name: service-provider-acapy-postgres-db
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    ports:
+      - 5434:5432
+    networks:
+      - network
+    volumes: 
+      - postgres_data:/var/lib/postgresql/data
+
+networks:
+  network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+
