@@ -80,9 +80,7 @@ services:
       - controller_mongodb_data:/data/db
   
   acapy_agent:
-    build:
-      context: "./nsf-acapy"
-      dockerfile: ./nsf-demo/nsf-demo.Dockerfile
+    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.6-indy-1.16.0-0.8.1
     container_name: user-acapy-agent
     ports:
       - 8031:8031
@@ -92,7 +90,7 @@ services:
     networks:
       - network
     command: start --arg-file "//user-agent-args.yaml" --wallet-storage-config '{"url":"acapy_wallet_db:5432","max_connections":5, "wallet_scheme":"DatabasePerWallet"}' --wallet-storage-creds '{"account":"postgres","password":"postgres","admin_account":"postgres","admin_password":"postgres"}'
-  
+
   acapy_wallet_db:
     image: postgres:14.1-alpine
     container_name: user-acapy-postgres-db
