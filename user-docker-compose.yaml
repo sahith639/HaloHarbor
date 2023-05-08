@@ -11,6 +11,12 @@ services:
       - dataplug
     networks:
       - network
+    environment:
+      REACT_APP_USER_AGENT_CONTROLLER_BASE_URL: "http://localhost:8080"
+      REACT_APP_SERVICE_PROVIDER_AGENT_BASE_URL: "http://localhost:8021"
+      REACT_APP_DP_BASE_URL: "http://localhost:8001"
+      REACT_APP_BASE_URL: "http://localhost:3000"
+      REACT_APP_PORT: 3000
 
   dataplug:
     build: "./progressive/employee/dataplug/"
