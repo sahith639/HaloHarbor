@@ -80,7 +80,22 @@ services:
      - acapy_wallet_db
     networks:
       - network
-    command: start --arg-file "//user-agent-args.yaml" --wallet-storage-config '{"url":"acapy_wallet_db:5432","max_connections":5, "wallet_scheme":"DatabasePerWallet"}' --wallet-storage-creds '{"account":"postgres","password":"postgres","admin_account":"postgres","admin_password":"postgres"}'
+    command: >
+      start
+      --inbound-transport http 0.0.0.0 8030
+      --outbound-transport http
+      --endpoint 'http://acapy_agent:8030'
+      --label 'user.agent'
+      --admin-insecure-mode
+      --admin 0.0.0.0 8031
+      --no-ledger
+      --auto-provision
+      --wallet-type askar
+      --wallet-name user-wallet
+      --wallet-key wallet-password
+      --wallet-storage-type postgres_storage
+      --wallet-storage-config '{"url":"acapy_wallet_db:5432","max_connections":5, "wallet_scheme":"DatabasePerWallet"}'
+      --wallet-storage-creds '{"account":"postgres","password":"postgres","admin_account":"postgres","admin_password":"postgres"}'
 
   acapy_wallet_db:
     image: postgres:14.1-alpine
