@@ -8,11 +8,11 @@ services:
     ports:
       - 8003:5000
     depends_on:
-      - db
+      - backend_db
     networks:
       - network
 
-  db:
+  backend_db:
     image: postgres
     container_name: employer-db
     ports:
@@ -24,7 +24,7 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: mysecretpassword
 
-  web:
+  backend_api:
     build: "./progressive/manager/dashboard server/django_backend/"
     container_name: employer-backend
     command: >
@@ -35,14 +35,14 @@ services:
     ports:
       - "8000:8000"
     depends_on:
-      - db
+      - backend_db
     networks:
       - network
     environment:
       - DB_NAME=postgres
       - DB_USER=postgres
       - DB_PASSWORD=mysecretpassword
-      - DB_HOST=db
+      - DB_HOST=backend_db
       - DB_PORT=5432
 
   controller:
@@ -53,13 +53,13 @@ services:
     ports:
       - 8081:8081
     depends_on:
-      - web
+      - backend_api
       - acapy_agent
     networks:
       - network
     environment:
       AGENT_URL: http://acapy_agent:8021
-      BACKEND_API_HOST: web
+      BACKEND_API_HOST: backend_api
       BACKEND_API_PORT: 8000
   
   acapy_agent:
