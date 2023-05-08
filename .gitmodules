@@ -4,11 +4,9 @@
 [submodule "nsf-user-controller"]
 	path = nsf-user-controller
 	url = https://github.com/cwru-xlab/nsf-user-controller
-	branch = experiment-compose
 [submodule "nsf-service-provider-controller"]
 	path = nsf-service-provider-controller
 	url = https://github.com/cwru-xlab/nsf-service-provider-controller
-	branch = main
 [submodule "progressive"]
 	path = progressive
 	url = https://github.com/cwru-xlab/Progressive
