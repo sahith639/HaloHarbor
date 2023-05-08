@@ -49,7 +49,6 @@ services:
   controller:
     build:
       context: "./nsf-user-controller"
-      dockerfile: ./demo/Dockerfile
     container_name: user-controller
     ports:
       - 8080:8080
