@@ -6,7 +6,7 @@ services:
     build: "./progressive/employee/frontend"
     container_name: employee-frontend
     ports:
-      - 8002:3000
+      - 3000:3000
     depends_on:
       - dataplug
     networks:
@@ -24,7 +24,7 @@ services:
       - network
     env_file: "./progressive/employee/dataplug/.env"
     environment:
-      USER_AGENT_CONTROLLER_BASE_URL: http://controller:8031
+      USER_AGENT_CONTROLLER_BASE_URL: http://controller:8080
       SERVICE_PROVIDER_AGENT_BASE_URL: ${SERVICE_PROVIDER_AGENT_BASE_URL} # TODO remove this? I don't think user-side should be communicating directly with service provider (outside of invitations).
       BASE_URL: "http://host.docker.internal:8001" # Can probably replace w service ref.
       MONGODB_URI: mongodb://host.docker.internal:27018 # mongodb://dataplug_db:27018 fails
@@ -80,11 +80,13 @@ services:
      - acapy_wallet_db
     networks:
       - network
+    # TODO comment arg meanings:
+    # --endpoint is used to communicate to other agents, so it must be resolvable outside of the docker compose network.
     command: >
       start
       --inbound-transport http 0.0.0.0 8030
       --outbound-transport http
-      --endpoint 'http://acapy_agent:8030'
+      --endpoint 'http://host.docker.internal:8030'
       --label 'user.agent'
       --admin-insecure-mode
       --admin 0.0.0.0 8031

@@ -6,7 +6,7 @@ services:
     build: "./progressive/manager/employer front end"
     container_name: employer-frontend
     ports:
-      - 8003:5000
+      - 5000:5000
     depends_on:
       - backend_db
     networks:
@@ -37,7 +37,9 @@ services:
     depends_on:
       - backend_db
     networks:
-      - network
+      network:
+        aliases:
+          - backendapi
     environment:
       - DB_NAME=postgres
       - DB_USER=postgres
@@ -59,7 +61,7 @@ services:
       - network
     environment:
       AGENT_URL: http://acapy_agent:8021
-      BACKEND_API_HOST: backend_api
+      BACKEND_API_HOST: backendapi
       BACKEND_API_PORT: 8000
   
   acapy_agent:
@@ -73,11 +75,12 @@ services:
     networks:
       - network
     # TODO comment arg meanings:
+    # --endpoint is used to communicate to other agents, so it must be resolvable outside of the docker compose network.
     command: >
       start
       --inbound-transport http 0.0.0.0 8020
       --outbound-transport http
-      --endpoint 'http://acapy_agent:8020'
+      --endpoint 'http://host.docker.internal:8020'
       --webhook-url 'http://controller:8081/webhook'
       --label 'service-provider.agent'
       --admin-insecure-mode
@@ -112,4 +115,3 @@ networks:
 volumes:
   postgres_data_acapy_wallet:
     driver: local
-
