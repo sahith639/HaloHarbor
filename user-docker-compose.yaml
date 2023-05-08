@@ -29,15 +29,11 @@ services:
     networks:
       - network
     env_file: "./progressive/employee/dataplug/.env"
+    # ^ NOTE: env_file automatically passes env vars to the container (don't need to specify them here in the compose file).
     environment:
       USER_AGENT_CONTROLLER_BASE_URL: http://controller:8080
-      SERVICE_PROVIDER_AGENT_BASE_URL: ${SERVICE_PROVIDER_AGENT_BASE_URL} # TODO remove this? I don't think user-side should be communicating directly with service provider (outside of invitations).
       BASE_URL: "http://host.docker.internal:8001" # Can probably replace w service ref.
-      MONGODB_URI: mongodb://host.docker.internal:27018 # mongodb://dataplug_db:27018 fails
-      METRIPORT_API_KEY: ${METRIPORT_API_KEY}
-      METRIPORT_API_URL: ${METRIPORT_API_URL}
-      CREATE_INVITATION_BODY: ${CREATE_INVITATION_BODY}
-      SECRET: ${SECRET}
+      MONGODB_URI: mongodb://dataplug_db:27017
       PORT: 8001
 
   dataplug_db:
