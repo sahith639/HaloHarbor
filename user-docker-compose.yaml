@@ -6,7 +6,7 @@ services:
     build: "./progressive/employee/frontend"
     container_name: employee-frontend
     ports:
-      - 3000:3000
+      - 3001:3000 # Using port 3001 instead of 3000 so that frontend team can run frontend locally as well.
     depends_on:
       - dataplug
     networks:
@@ -15,8 +15,8 @@ services:
       REACT_APP_USER_AGENT_CONTROLLER_BASE_URL: "http://localhost:8080"
       REACT_APP_SERVICE_PROVIDER_AGENT_BASE_URL: "http://localhost:8021"
       REACT_APP_DP_BASE_URL: "http://localhost:8001"
-      REACT_APP_BASE_URL: "http://localhost:3000"
-      REACT_APP_PORT: 3000
+      REACT_APP_BASE_URL: "http://localhost:3001"
+      REACT_APP_PORT: 3001
 
   dataplug:
     build: "./progressive/employee/dataplug/"
