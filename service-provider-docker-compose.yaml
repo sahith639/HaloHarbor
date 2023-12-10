@@ -11,6 +11,8 @@ services:
       - backend_db
     networks:
       - network
+    environment:
+      REACT_APP_BACKEND_BASE_URL: http://localhost:8000/api
 
   backend_db:
     image: postgres
