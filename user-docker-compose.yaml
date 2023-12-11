@@ -45,6 +45,14 @@ services:
       - network
     volumes:
       - dataplug_mongodb_data:/data/db
+
+  model:
+    build: "./progressive/model"
+    container_name: model
+    ports:
+      - 5001:5001
+    networks:
+      - network
   
   controller:
     build:
