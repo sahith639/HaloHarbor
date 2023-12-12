@@ -31,10 +31,13 @@ services:
     env_file: "./progressive/employee/dataplug/.env"
     # ^ NOTE: env_file automatically passes env vars to the container (don't need to specify them here in the compose file).
     environment:
-      USER_AGENT_CONTROLLER_BASE_URL: http://controller:8080
+      USER_AGENT_CONTROLLER_BASE_URL: "http://controller:8080"
       BASE_URL: "http://host.docker.internal:8001" # Can probably replace w service ref.
-      MONGODB_URI: mongodb://dataplug_db:27017
+      MONGODB_URI: "mongodb://dataplug_db:27018"
       PORT: 8001
+      USER_AGENT_CONTROLLER_BASE_URL: "http://localhost:8080"
+      METRIPORT_API_URL: "https://api.metriport.com/"
+      SERVICE_PROVIDER_AGENT_BASE_URL: "http://host.docker.internal:8021"
 
   dataplug_db:
     image: mongo:latest
