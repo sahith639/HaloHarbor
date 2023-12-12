@@ -33,7 +33,7 @@ services:
     environment:
       USER_AGENT_CONTROLLER_BASE_URL: "http://controller:8080"
       BASE_URL: "http://host.docker.internal:8001" # Can probably replace w service ref.
-      MONGODB_URI: "mongodb://dataplug_db:27018"
+      MONGODB_URI: "mongodb://dataplug_db:27017" # Uses internal port, not host port.
       PORT: 8001
       METRIPORT_API_URL: "https://api.metriport.com/"
       SERVICE_PROVIDER_AGENT_BASE_URL: "http://host.docker.internal:8021"
