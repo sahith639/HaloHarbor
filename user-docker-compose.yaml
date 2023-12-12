@@ -35,7 +35,6 @@ services:
       BASE_URL: "http://host.docker.internal:8001" # Can probably replace w service ref.
       MONGODB_URI: "mongodb://dataplug_db:27018"
       PORT: 8001
-      USER_AGENT_CONTROLLER_BASE_URL: "http://localhost:8080"
       METRIPORT_API_URL: "https://api.metriport.com/"
       SERVICE_PROVIDER_AGENT_BASE_URL: "http://host.docker.internal:8021"
       MODEL_PREDICTION_URL: "http://model:5001/getPredictionOutput"
