@@ -3,60 +3,16 @@ name: nsf-user-employee-demo
 services:
 
   employee_frontend:
-    build: "./progressive/employee/frontend"
-    container_name: employee-frontend
+    build: "./user/user-frontend"
+    container_name: user-frontend
     ports:
       - 3001:3000 # Using port 3001 instead of 3000 so that frontend team can run frontend locally as well.
-    depends_on:
-      - dataplug
     networks:
       - network
     environment:
-      REACT_APP_USER_AGENT_CONTROLLER_BASE_URL: "http://localhost:8080"
-      REACT_APP_SERVICE_PROVIDER_AGENT_BASE_URL: "http://localhost:8021"
-      REACT_APP_DP_BASE_URL: "http://localhost:8001"
-      REACT_APP_BASE_URL: "http://localhost:3001"
-      REACT_APP_PORT: 3001
+      REACT_APP_USER_CONTROLLER_BASE_URL: "http://localhost:8080"
+      PORT: 3000
 
-  dataplug:
-    build: "./progressive/employee/dataplug/"
-    container_name: data-plug
-    ports:
-      - 8001:8001
-    depends_on:
-      - controller
-      - dataplug_db
-    networks:
-      - network
-    env_file: "./progressive/employee/dataplug/.env"
-    # ^ NOTE: env_file automatically passes env vars to the container (don't need to specify them here in the compose file).
-    environment:
-      USER_AGENT_CONTROLLER_BASE_URL: "http://controller:8080"
-      BASE_URL: "http://host.docker.internal:8001" # Can probably replace w service ref.
-      MONGODB_URI: "mongodb://dataplug_db:27017" # Uses internal port, not host port.
-      PORT: 8001
-      METRIPORT_API_URL: "https://api.metriport.com/"
-      SERVICE_PROVIDER_AGENT_BASE_URL: "http://host.docker.internal:8021"
-      MODEL_PREDICTION_URL: "http://model:5001/getPredictionOutput"
-
-  dataplug_db:
-    image: mongo:latest
-    container_name: dataplug-mongo-db
-    ports:
-      - 27018:27017
-    networks:
-      - network
-    volumes:
-      - dataplug_mongodb_data:/data/db
-
-  model:
-    build: "./progressive/model"
-    container_name: model
-    ports:
-      - 5001:5001
-    networks:
-      - network
-  
   controller:
     build:
       context: "./nsf-user-controller"
@@ -99,6 +55,7 @@ services:
       --inbound-transport http 0.0.0.0 8030
       --outbound-transport http
       --endpoint 'http://host.docker.internal:8030'
+      --webhook-url 'http://host.docker.internal:8080/webhook'
       --label 'user.agent'
       --admin-insecure-mode
       --admin 0.0.0.0 8031
@@ -130,7 +87,6 @@ networks:
     driver: bridge
 
 volumes:
-  dataplug_mongodb_data:
   controller_mongodb_data:
   postgres_data:
     driver: local
