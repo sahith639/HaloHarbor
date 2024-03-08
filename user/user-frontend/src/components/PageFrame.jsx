@@ -23,7 +23,7 @@ const PageFrame = ({ element }) => {
       <Box m="5vh">
 
         {/* TODO move these box containers to a separate component which gets used inside the element, so that multiple large cards can be on the same page. */}
-        <Box gridColumn="span 16" gridRow="span 2" backgroundColor="#f0f0f0" sx={{borderRadius: '16px', boxShadow: 2}}> 
+        <Box gridColumn="span 16" gridRow="span 2" backgroundColor="#f3f4f8" sx={{borderRadius: '16px', boxShadow: 2}}> 
           <Box gridColumn="span 16" gridRow="span 10" sx={{ width:'100%', borderRadius:'16px', display:"flex", direction:"row", padding: "20px 20px 20px 20px" }}>
         {element}
         </Box>

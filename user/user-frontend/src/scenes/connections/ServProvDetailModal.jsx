@@ -4,6 +4,7 @@ import axios from 'axios'
 import MyModal from '../../components/MyModal';
 import MyModalContent from '../../components/MyModalContent';
 import config from '../../utils/config'
+import DataMenu from '../../components/DataMenu';
 
 const ServProvDetailModal = ({ isOpen, onClose, servProvData, onServProvsUpdate }) => {
   console.log("detail modal", servProvData);
@@ -24,6 +25,11 @@ const ServProvDetailModal = ({ isOpen, onClose, servProvData, onServProvsUpdate 
       <MyModalContent>
         <h2>Service Provider Connection</h2>
 
+        <DataMenu></DataMenu>
+
+        <Button variant="contained">
+          Save Changes
+        </Button>
         <Button variant="contained" onClick={deleteServProv}>
           Delete
         </Button>

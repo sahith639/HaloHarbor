@@ -25,7 +25,7 @@ import DataObjectOutlinedIcon from '@mui/icons-material/DataObjectOutlined';
 
 const SidebarHeader = () => {
   return (
-    <Typography sx={{ textAlign: 'center', marginBottom: '1rem' }} variant="h4" fontWeight={800} color="#003071" >
+    <Typography sx={{ textAlign: 'center', marginBottom: '1rem' }} variant="h4" fontWeight={800} color="orange" >
       Service Provider
     </Typography>
   );

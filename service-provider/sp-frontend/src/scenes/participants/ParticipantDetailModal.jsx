@@ -5,11 +5,11 @@ import MyModal from '../../components/MyModal';
 import MyModalContent from '../../components/MyModalContent';
 import config from '../../utils/config'
 
-const InvitationDetailModal = ({ isOpen, onClose, detailData, onListingUpdate }) => {
+const ParticipationDetailModal = ({ isOpen, onClose, detailData, onListingUpdate }) => {
   console.log("detail modal", detailData);
 
-  const deleteInvitation = async () => {
-    var response = await axios.delete(`${config.BACKEND_BASE_URL}/invitations/${detailData._id}`);
+  const deleteItem = async () => {
+    var response = await axios.delete(`${config.BACKEND_BASE_URL}/participants/${detailData._id}`);
     onListingUpdate();
     onClose();
   }
@@ -32,18 +32,21 @@ const InvitationDetailModal = ({ isOpen, onClose, detailData, onListingUpdate })
     >
     <Fade in={isOpen}>
       <MyModalContent>
-        <h2>Connection Invitation</h2>
+        <h2>Participant #{detailData.number}</h2>
         <Box style={containerStyle}>
-          <Typography variant="contained" style={style}>
-            {detailData.url}
+          <Typography style={style}>
+            <strong>Join Date:</strong> {detailData.createdAt}
+          </Typography>
+          <Typography style={style}>
+          <strong>Invitation used to Join:</strong> {detailData.invitationName}
           </Typography>
         </Box>
         <Box style={{padding: "10px"}}>
-          <Button variant="contained" onClick={deleteInvitation}>
-            Delete
+          <Button variant="contained" onClick={deleteItem}>
+            Remove & Block
           </Button>
           <Button variant="contained" onClick={onClose} color="secondary">
-          Close
+            Close
           </Button>
         </Box>
       </MyModalContent>
@@ -52,4 +55,4 @@ const InvitationDetailModal = ({ isOpen, onClose, detailData, onListingUpdate })
   )
 };
 
-export default InvitationDetailModal
+export default ParticipationDetailModal

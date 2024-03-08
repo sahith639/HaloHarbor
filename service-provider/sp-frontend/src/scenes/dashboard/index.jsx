@@ -27,12 +27,8 @@ const Dashboard = () => {
           Dashboard
         </Typography>
         <Typography variant="h5" sx={{ padding: "20px 30px 0 5px", color: "#000000"}}>
-          Text here
-          TODO
+          TODO cool insights here
         </Typography>
-        <ul>
-          <li>Text here...</li>
-        </ul>
       </Box>
     );
 }

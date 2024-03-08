@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: >-
-  Stack for the entire user architecture. This represents the 
+  [xLab Spring 2024 Data Sharing architecture] Stack for an entire user architecture. Represents the resources (namely the user data agent) of a single user.
 Parameters:
   UserUniqueIdSuffix:
     Type: String

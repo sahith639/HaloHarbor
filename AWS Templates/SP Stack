@@ -1,9 +1,6 @@
 AWSTemplateFormatVersion: 2010-09-09
 Description: >-
-  An example service that deploys in AWS VPC networking mode on EC2 capacity.
-  Service uses a capacity provider to request EC2 instances to run on. Service
-  runs with networking in private subnets, but still accessible to the internet
-  via a load balancer hosted in public subnets.
+  [xLab Spring 2024 Data Sharing architecture] Stack for an entire service provider architecture. Represents the resources of a single service provider.
 Parameters:
   SPUniqueIdSuffix:
     Type: String
