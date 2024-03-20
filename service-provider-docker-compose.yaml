@@ -3,7 +3,7 @@ name: nsf-service-provider-employer-demo
 services:
 
   frontend:
-    build: "./service-provider/sp-frontend"
+    build: "./service-provider/frontend-sp"
     container_name: sp-frontend
     ports:
       - 5000:5000
@@ -16,7 +16,7 @@ services:
       PORT: 5000
 
   controller:
-    build: "./nsf-service-provider-controller"
+    build: "./service-provider/backend-sp"
     container_name: service-provider-controller
     ports:
       - 9081:9081
