@@ -1,18 +1,44 @@
-import React, { useEffect } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Box, Stack } from '@mui/system'
 // import { useStateValue } from '../../state/state'
 import { useNavigate } from 'react-router-dom'
 import { Button, IconButton, Typography, useTheme } from "@mui/material";
 import SectionCard from '../../components/SectionCard';
 import DataMenu from '../../components/DataMenu';
-// import cachePull from '../../utils/cachePull'
+import config from '../../utils/config'
+import axios from 'axios'
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 
 const SettingsPage = () => {
-    const theme = useTheme();
-    const colors = theme.palette;
-    // const [, dispatch] = useStateValue()
-    const navigate = useNavigate()
+    const [dataMenuSelection, setDataMenuSelection] = useState({});
+    
+    async function updateDataMenuSelection() {
+      const response = await axios.get(`${config.BACKEND_BASE_URL}/data-menu-settings`);
+      console.log("fetched data menu:", response.data);
+      setDataMenuSelection(response.data);
+    }
+
+    async function cancelChanges(){
+      await updateDataMenuSelection();
+      toast.info("Reverted Changes");
+    }
+
+    async function saveDataMenuSelection() {
+      const response = await axios.put(`${config.BACKEND_BASE_URL}/data-menu-settings`, dataMenuSelection);
+      toast.success("Saved Data Settings");
+    }
+
+    const hasRan = useRef(false);
+    useEffect(() => {
+      if (!hasRan.current){
+        hasRan.current = true;
+
+        updateDataMenuSelection();
+      }
+    }, []);
+
 
 
     return (
@@ -21,22 +47,24 @@ const SettingsPage = () => {
           Data Pulling
         </Typography>
 
-        <DataMenu></DataMenu>
+        <DataMenu dataMenuSelection={dataMenuSelection} setDataMenuSelection={setDataMenuSelection}></DataMenu>
 
         <Box>
           <Button
             sx={{ display: "flex", justifyContent: "center", alignItems: "center" }}
             variant="contained"
-            onClick={() => {}}>
+            onClick={saveDataMenuSelection}>
               Save Changes
           </Button>
           <Button
             sx={{ display: "flex", justifyContent: "center", alignItems: "center" }}
             variant="contained"
-            onClick={() => {}}>
-              Revert Changes
+            onClick={cancelChanges}>
+              Cancel Changes
           </Button>
         </Box>
+
+        <ToastContainer />
       </SectionCard>
     );
 }

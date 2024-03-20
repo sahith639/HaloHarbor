@@ -2,7 +2,7 @@ version: "3.9"
 name: nsf-service-provider-employer-demo
 services:
 
-  employer_frontend:
+  frontend:
     build: "./service-provider/sp-frontend"
     container_name: sp-frontend
     ports:
@@ -12,14 +12,14 @@ services:
     networks:
       - network
     environment:
-      REACT_APP_BACKEND_BASE_URL: http://localhost:8081
+      REACT_APP_BACKEND_BASE_URL: http://localhost:9081
       PORT: 5000
 
   controller:
     build: "./nsf-service-provider-controller"
     container_name: service-provider-controller
     ports:
-      - 8081:8081
+      - 9081:9081
     depends_on:
       - acapy_agent
     networks:
@@ -39,11 +39,11 @@ services:
       - backend_mongodb_data:/data/db
   
   acapy_agent:
-    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.6-indy-1.16.0-0.8.1
+    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.9-indy-1.16.0-0.10.4
     container_name: service-provider-acapy-agent
     ports:
-      - 8021:8021
-      - 8020:8020
+      - 9021:8021
+      - 9020:8020
     depends_on:
      - acapy_wallet_db
     networks:
@@ -52,14 +52,17 @@ services:
     # --endpoint is used to communicate to other agents, so it must be resolvable outside of the docker compose network.
     command: >
       start
+      --log-level 'debug'
       --inbound-transport http 0.0.0.0 8020
       --outbound-transport http
-      --endpoint 'http://host.docker.internal:8020'
-      --webhook-url 'http://host.docker.internal:8081/webhook'
+      --endpoint 'http://host.docker.internal:9020'
+      --webhook-url 'http://host.docker.internal:9081/webhook'
       --label 'service-provider.agent'
       --admin-insecure-mode
       --admin 0.0.0.0 8021
-      --no-ledger
+      --genesis-url 'http://test.bcovrin.vonx.io/genesis'
+      --log-level 'debug'
+      --auto-accept-invites --auto-accept-requests --auto-ping-connection --auto-respond-credential-proposal --auto-respond-credential-offer --auto-respond-credential-request --auto-verify-presentation --auto-store-credential
       --auto-provision
       --wallet-type askar
       --wallet-name service-provider-wallet

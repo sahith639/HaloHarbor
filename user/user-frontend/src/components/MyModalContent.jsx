@@ -6,6 +6,7 @@ const MyModalContent = styled('div')({
   border: '2px solid #000',
   padding: '20px',
   borderRadius: '8px',
+  maxWidth: '70vw'
 });
 
 export default MyModalContent

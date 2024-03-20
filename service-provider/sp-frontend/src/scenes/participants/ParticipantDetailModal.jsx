@@ -24,6 +24,10 @@ const ParticipationDetailModal = ({ isOpen, onClose, detailData, onListingUpdate
     overflow: 'hidden',     // This will hide any overflow content
   };
 
+  function epochSecondsToDateTimeString(epochSeconds) {
+    return new Date(epochSeconds * 1000).toLocaleString();
+  }
+
   return (
     <MyModal
     open={isOpen}
@@ -35,7 +39,7 @@ const ParticipationDetailModal = ({ isOpen, onClose, detailData, onListingUpdate
         <h2>Participant #{detailData.number}</h2>
         <Box style={containerStyle}>
           <Typography style={style}>
-            <strong>Join Date:</strong> {detailData.createdAt}
+            <strong>Join Date:</strong> {epochSecondsToDateTimeString(detailData.createdAt)}
           </Typography>
           <Typography style={style}>
           <strong>Invitation used to Join:</strong> {detailData.invitationName}

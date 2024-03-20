@@ -16,6 +16,7 @@ import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined
 import ChatBubbleOutlineOutlinedIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
 import LocalFloristOutlinedIcon from '@mui/icons-material/LocalFloristOutlined';
 import QuestionMarkOutlinedIcon from '@mui/icons-material/QuestionMarkOutlined';
+import DocumentScannerOutlinedIcon from '@mui/icons-material/DocumentScannerOutlined';
 
 // import StressScore from "../StressScore";
 // import Logout from "../../components/Logout";
@@ -97,14 +98,14 @@ const ThisProSidebar = () => {
               setSelected= {setSelected} 
           />
           <Item
-              title={"My Data"}
+              title={"Profile"}
               to="../profile"
               icon ={<PersonOutlinedIcon />}
               selected={selected}
               setSelected={setSelected}
           />
           <Item 
-              title={"Activity"}
+              title={"Shared Data"}
               to="/history"
               icon ={<ChatBubbleOutlineOutlinedIcon />}
               selected={selected}
@@ -114,6 +115,13 @@ const ThisProSidebar = () => {
               title={"Connections"}
               to="/connections"
               icon ={<LanguageIcon />}
+              selected={selected}
+              setSelected={setSelected}
+          />
+          <Item 
+              title={"My Insights"}
+              to="/insights"
+              icon ={<DocumentScannerOutlinedIcon />}
               selected={selected}
               setSelected={setSelected}
           />

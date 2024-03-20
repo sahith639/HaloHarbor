@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef  } from 'react'
+import { useState, useEffect, useRef  } from 'react'
 import { Box, Stack } from '@mui/system'
 // import { useStateValue } from '../../state/state'
 import { useNavigate } from 'react-router-dom'
@@ -12,6 +12,8 @@ import ServProvDetailModal from './ServProvDetailModal';
 import MyModal from '../../components/MyModal';
 import MyModalContent from '../../components/MyModalContent';
 import MyCard from '../../components/MyCard';
+import SectionCard from '../../components/SectionCard';
+import { ToastContainer, toast } from 'react-toastify';
 
 
 const ConnectionsPage = () => {
@@ -35,12 +37,10 @@ const ConnectionsPage = () => {
     }
 
     const handleSubmit = async () => {
-      const uniqueId = Date.now();
-
       const formData = new FormData();
       formData.append('invitationUrl', invitationUrl);
 
-      var response = await axios.post(`${config.USER_CONTROLLER_BASE_URL}/service-providers/${uniqueId}`, formData);
+      var response = await axios.post(`${config.USER_CONTROLLER_BASE_URL}/service-providers`, formData);
 
       // Close the modal:
       setNewInvitationModalOpen(false);
@@ -50,6 +50,8 @@ const ConnectionsPage = () => {
       setDetailModalOpen(true);
 
       updateServProvsList();
+
+      toast.success("Added Service Provider");
     };
 
     const handleTextChange = (e) => {
@@ -63,15 +65,10 @@ const ConnectionsPage = () => {
 
         updateServProvsList();
       }
-  
-      document.title = 'Connections';
-      return () => {
-        document.title = 'TODO title';
-      };
     }, []);
 
     return (
-            <Box sx = {{color: "F8F8F8"}}>
+            <SectionCard>
               <Typography variant="h3" sx={{ color: "#000000"}}>
                 Connected Service Providers
               </Typography>
@@ -86,9 +83,9 @@ const ConnectionsPage = () => {
                       <CardContent>
                         {/* TODO click to bringup detail modal - then theres a list of toggles for each requested permission (which the serv prov provides/responds again from the first/initial connection message). Delete button here. */}
                         <Typography component="div">
-                          [Serv Prov Name Here]
+                          {item.bannerData.name} <i>(ID: {item.connId.substring(0, 8)})</i>
                         </Typography>
-                        <Typography color="text.secondary">[description (provided by service provider) here - responded from serv prov on the first connection message/test]</Typography>
+                        <Typography color="text.secondary">{item.bannerData.desc}</Typography>
                       </CardContent>
                     </MyCard>
                   );
@@ -135,8 +132,8 @@ const ConnectionsPage = () => {
         </MyModal>
 
 
-        <ServProvDetailModal isOpen={detailModalOpen} onClose={() => setDetailModalOpen(false)} servProvData={detailData} onServProvsUpdate={updateServProvsList} />
-      </Box>
+        <ServProvDetailModal isOpen={detailModalOpen} onClose={() => setDetailModalOpen(false)} summaryData={detailData} onServProvsUpdate={updateServProvsList} />
+      </SectionCard>
     );
 }
 

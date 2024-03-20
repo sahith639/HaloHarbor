@@ -2,7 +2,7 @@ version: "3.9"
 name: nsf-user-employee-demo
 services:
 
-  employee_frontend:
+  frontend:
     build: "./user/user-frontend"
     container_name: user-frontend
     ports:
@@ -10,7 +10,7 @@ services:
     networks:
       - network
     environment:
-      REACT_APP_USER_CONTROLLER_BASE_URL: "http://localhost:8080"
+      REACT_APP_USER_CONTROLLER_BASE_URL: "http://localhost:9080"
       PORT: 3000
 
   controller:
@@ -18,48 +18,53 @@ services:
       context: "./nsf-user-controller"
     container_name: user-controller
     ports:
-      - 8080:8080
+      - 9080:9080
     depends_on:
       - controller_db
       - acapy_agent
     networks:
       - network
     environment:
-      AGENT_URL: http://acapy_agent:8031
+      AGENT_URL: http://acapy_agent:9031
       MONGO_DB_URI: mongodb://controller_db:27017
 
   controller_db:
     image: mongo:latest
     container_name: user-controller-mongo-db
     ports:
-      - 27017:27017
+      - 37017:27017
     networks:
       - network
     volumes:
       - controller_mongodb_data:/data/db
   
   acapy_agent:
-    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.6-indy-1.16.0-0.8.1
+    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.9-0.12.0rc2
     container_name: user-acapy-agent
     ports:
-      - 8031:8031
-      - 8030:8030
+      - 9031:9031
+      - 9030:9030
     depends_on:
      - acapy_wallet_db
     networks:
       - network
     # TODO comment arg meanings:
     # --endpoint is used to communicate to other agents, so it must be resolvable outside of the docker compose network.
+    # keep teh --webhook-url hostname to the host's localhost instead of a service reference, because that way we can swap out a locally running controller.
+    #--auto-accept-invites --auto-accept-requests --auto-ping-connection --auto-respond-messages --auto-respond-credential-proposal --auto-respond-credential-offer --auto-respond-credential-request --auto-verify-presentation --auto-store-credential
     command: >
       start
-      --inbound-transport http 0.0.0.0 8030
+      --log-level 'debug'
+      --inbound-transport http 0.0.0.0 9030
       --outbound-transport http
-      --endpoint 'http://host.docker.internal:8030'
-      --webhook-url 'http://host.docker.internal:8080/webhook'
+      --endpoint 'http://host.docker.internal:9030'
+      --webhook-url 'http://host.docker.internal:9080/webhook'
       --label 'user.agent'
       --admin-insecure-mode
-      --admin 0.0.0.0 8031
-      --no-ledger
+      --admin 0.0.0.0 9031
+      --genesis-url 'http://test.bcovrin.vonx.io/genesis'
+      --log-level 'debug'
+      --auto-accept-invites --auto-accept-requests --auto-ping-connection --auto-respond-credential-proposal --auto-respond-credential-offer --auto-respond-credential-request --auto-verify-presentation --auto-store-credential
       --auto-provision
       --wallet-type askar
       --wallet-name user-wallet

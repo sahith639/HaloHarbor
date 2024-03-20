@@ -64,6 +64,7 @@ Resources:
 
   FrontendTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: MyECSLoadBalancer
     Properties:
       Protocol: HTTP
       Port: 5000
@@ -122,13 +123,14 @@ Resources:
 
   ServControllerTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: MyECSLoadBalancer
     Properties:
       Protocol: HTTP
-      Port: 8081
+      Port: 9081
       VpcId: !Ref VpcId
       TargetType: ip
       HealthCheckEnabled: true
-      HealthCheckPort: 8081
+      HealthCheckPort: 9081
       HealthCheckProtocol: 'HTTP'
       HealthCheckPath: /
       HealthCheckIntervalSeconds: 100
@@ -145,12 +147,13 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref ServControllerTargetGroup
       LoadBalancerArn: !Ref MyECSLoadBalancer
-      Port: 8081
+      Port: 9081
       Protocol: HTTP
 
 
   AcapyTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: MyECSLoadBalancer
     Properties:
       Protocol: HTTP
       Port: 8020
@@ -179,6 +182,7 @@ Resources:
 
   AcapyAdminTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: MyECSLoadBalancer
     Properties:
       Protocol: HTTP
       Port: 8021
@@ -298,7 +302,7 @@ Resources:
             - Name: ENDPOINT_URL
               Value: !Sub 'http://sp${SPUniqueIdSuffix}.sharetrace.us:8020'
             - Name: WEBHOOK_URL
-              Value: !Sub 'http://serv-controller.sp-services${SPUniqueIdSuffix}:8081/webhook'
+              Value: !Sub 'http://serv-controller.sp-services${SPUniqueIdSuffix}:9081/webhook'
 
   
   # Acapy Db:
@@ -415,7 +419,7 @@ Resources:
             - Arn
       LoadBalancers:
         - ContainerName: ServController
-          ContainerPort: 8081
+          ContainerPort: 9081
           TargetGroupArn: !Ref ServControllerTargetGroup
   ServControllerTaskDefinition:
     Type: 'AWS::ECS::TaskDefinition'
@@ -433,8 +437,8 @@ Resources:
           Memory: !Ref ContainerMemory
           Image: '429105560611.dkr.ecr.us-east-1.amazonaws.com/serv-controller'
           PortMappings:
-            - ContainerPort: '8081'
-              HostPort: '8081'
+            - ContainerPort: '9081'
+              HostPort: '9081'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -585,7 +589,7 @@ Resources:
               awslogs-stream-prefix: ecs
           Environment:
             - Name: REACT_APP_BACKEND_BASE_URL
-              Value: !Sub "http://sp${SPUniqueIdSuffix}.sharetrace.us:8081"
+              Value: !Sub "http://sp${SPUniqueIdSuffix}.sharetrace.us:9081"
             - Name: PORT
               Value: 5000
 

@@ -5,6 +5,9 @@ import { Box } from '@mui/system'
 
 // Frames page with sidebar on the side of the actual content.
 const PageFrame = ({ element }) => {
+
+  document.title = 'Serv Prov Agent';
+
   return (
     <div style={({ height: "100vh", display: "flex" })}>
       <ThisProSidebar/>
@@ -13,6 +16,8 @@ const PageFrame = ({ element }) => {
         {element}
       </Box>
       </main>
+      
+      {/* <ToastContainer /> */}
     </div>
   );
 };

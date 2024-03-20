@@ -17,10 +17,11 @@
     "react-pro-sidebar": "^1.1.0",
     "react-router-dom": "^6.22.2",
     "react-scripts": "5.0.1",
+    "react-toastify": "^10.0.4",
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "dev": "PORT=4999 REACT_APP_BACKEND_BASE_URL='http://localhost:8081' react-scripts start",
+    "dev": "PORT=4999 REACT_APP_BACKEND_BASE_URL='http://localhost:9081' react-scripts start",
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",

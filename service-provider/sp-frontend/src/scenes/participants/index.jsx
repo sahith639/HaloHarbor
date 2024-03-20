@@ -94,9 +94,16 @@ const ParticipantsPage = () => {
       };
     }, []);
 
+
+
+    function epochSecondsToDateTimeString(epochSeconds) {
+      return new Date(epochSeconds * 1000).toLocaleString();
+    }
+
+
     const columns = [  
-      { field: 'id', headerName: '#' },  
-      { field: 'createdAt', headerName: 'Join Date', flex: 1 },
+      { field: 'id', headerName: 'ID' },  
+      { field: 'createdAtStr', headerName: 'Join Date Time', flex: 1 },
       { field: 'invitationName', headerName: 'Invitation Used', flex: 1 },  
       ];
   
@@ -105,7 +112,8 @@ const ParticipantsPage = () => {
       const invitationName = invitation ? invitation.name : "[unknown invitation]";
       const r = {
         ...participant,
-        id: participant.number,
+        id: participant._id.substring(0, 8),
+        createdAtStr: epochSecondsToDateTimeString(participant.createdAt),
         invitationName: invitationName,
       };
       console.log(r);
@@ -131,7 +139,8 @@ const ParticipantsPage = () => {
         <SectionCard>
           <Typography variant="h3" sx={{ color: "#000000"}}>
             Connected Participants
-          </Typography> TODO refresh button here
+          </Typography>
+          {/* TODO refresh button here */}
 
           <Box sx={{ height: 300, width: '100%', maxWidth: 800 }}>
             <DataGrid  
@@ -160,7 +169,7 @@ const ParticipantsPage = () => {
                   <CardContent>
                     {/* TODO click to bringup detail modal - then theres a list of toggles for each requested permission (which the serv prov provides/responds again from the first/initial connection message). Delete button here. */}
                     <Typography component="div">
-                      {item.name} <i>(created {item.createdAt})</i>
+                      {item.name} <i>(created {epochSecondsToDateTimeString(item.createdAt)})</i>
                     </Typography>
                   </CardContent>
                 </MyCard>

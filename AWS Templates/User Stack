@@ -40,9 +40,6 @@ Resources:
       Name: !Sub 'user-services${UserUniqueIdSuffix}'
       Description: User CloudMap namespace
       Vpc: !Ref VpcId
-    Metadata:
-      'AWS::CloudFormation::Designer':
-        id: 8aaa28be-8007-4c88-9959-c15a3070e972
 
 
   ECSCluster:
@@ -64,6 +61,7 @@ Resources:
 
   FrontendTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: MyECSLoadBalancer
     Properties:
       Protocol: HTTP
       Port: 3000
@@ -122,6 +120,7 @@ Resources:
   
   AcapyTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: MyECSLoadBalancer
     Properties:
       Protocol: HTTP
       Port: 8030
@@ -150,6 +149,7 @@ Resources:
 
   AcapyAdminTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: MyECSLoadBalancer
     Properties:
       Protocol: HTTP
       Port: 8031
@@ -179,13 +179,14 @@ Resources:
 
   UserControllerTargetGroup:
     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: MyECSLoadBalancer
     Properties:
       Protocol: HTTP
-      Port: 8080
+      Port: 9080
       VpcId: !Ref VpcId
       TargetType: ip
       HealthCheckEnabled: true
-      HealthCheckPort: 8080
+      HealthCheckPort: 9080
       HealthCheckProtocol: 'HTTP'
       HealthCheckPath: /
       HealthCheckIntervalSeconds: 100
@@ -202,7 +203,7 @@ Resources:
         - Type: forward
           TargetGroupArn: !Ref UserControllerTargetGroup
       LoadBalancerArn: !Ref MyECSLoadBalancer
-      Port: 8080
+      Port: 9080
       Protocol: HTTP
 
 
@@ -298,7 +299,7 @@ Resources:
             - Name: ENDPOINT_URL
               Value: !Sub 'http://user${UserUniqueIdSuffix}.sharetrace.us:8030'
             - Name: WEBHOOK_URL
-              Value: !Sub 'http://user-controller.user-services${UserUniqueIdSuffix}:8080/webhook'
+              Value: !Sub 'http://user-controller.user-services${UserUniqueIdSuffix}:9080/webhook'
 
 
   # Acapy Db:
@@ -415,7 +416,7 @@ Resources:
             - Arn
       LoadBalancers:
         - ContainerName: UserController
-          ContainerPort: 8080
+          ContainerPort: 9080
           TargetGroupArn: !Ref UserControllerTargetGroup
   UserControllerTaskDefinition:
     Type: 'AWS::ECS::TaskDefinition'
@@ -433,8 +434,8 @@ Resources:
           Memory: !Ref ContainerMemory
           Image: '429105560611.dkr.ecr.us-east-1.amazonaws.com/user-controller'
           PortMappings:
-            - ContainerPort: '8080'
-              HostPort: '8080'
+            - ContainerPort: '9080'
+              HostPort: '9080'
           LogConfiguration:
             LogDriver: awslogs
             Options:
@@ -488,9 +489,6 @@ Resources:
         - RegistryArn: !GetAtt 
             - UserControllerDbDiscoveryService
             - Arn
-    Metadata:
-      'AWS::CloudFormation::Designer':
-        id: 8328c0a8-55db-4c3b-b45b-a472a3edd56b
   UserControllerDbTaskDefinition:
     Type: 'AWS::ECS::TaskDefinition'
     Properties:
@@ -515,9 +513,6 @@ Resources:
               awslogs-group: !Ref LogGroup
               awslogs-region: !Ref 'AWS::Region'
               awslogs-stream-prefix: ecs
-    Metadata:
-      'AWS::CloudFormation::Designer':
-        id: 57f17668-aadd-4660-a549-11aad3ca57d6
   
 
   # # Dataplug:
@@ -605,7 +600,7 @@ Resources:
   #           - Name: MONGODB_URI
   #             Value: !Sub "mongodb://user-controller-db.user-services${UserUniqueIdSuffix}:27017"
   #           - Name: USER_AGENT_CONTROLLER_BASE_URL
-  #             Value: !Sub "http://user-controller.user-services${UserUniqueIdSuffix}:8080"
+  #             Value: !Sub "http://user-controller.user-services${UserUniqueIdSuffix}:9080"
 
 
   # # Dataplug Db: -- removed because container and host ports need to be the same on FARGATE, so can only have one mongodb. wanted to merge this into the other database anyways.
@@ -729,7 +724,7 @@ Resources:
               awslogs-stream-prefix: ecs
           Environment:
             # - Name: REACT_APP_USER_AGENT_CONTROLLER_BASE_URL
-            #   Value: !Sub "http://user${UserUniqueIdSuffix}.sharetrace.us:8080"
+            #   Value: !Sub "http://user${UserUniqueIdSuffix}.sharetrace.us:9080"
             # - Name: REACT_APP_SERVICE_PROVIDER_AGENT_BASE_URL
             #   Value: "http://localhost:8021" # TODO
             # - Name: REACT_APP_DP_BASE_URL
@@ -741,7 +736,7 @@ Resources:
             - Name: PORT
               Value: 3000
             - Name: REACT_APP_USER_CONTROLLER_BASE_URL
-              Value: !Sub "http://user${UserUniqueIdSuffix}.sharetrace.us:8080"
+              Value: !Sub "http://user${UserUniqueIdSuffix}.sharetrace.us:9080"
 
 
   ServiceSecurityGroup:
@@ -755,81 +750,6 @@ Resources:
       SecurityGroupEgress:
         - IpProtocol: '-1'
           CidrIp: 0.0.0.0/0
-    Metadata:
-      'AWS::CloudFormation::Designer':
-        id: f269a217-79fb-4eae-8208-a4deec7a228f
   LogGroup:
     Type: 'AWS::Logs::LogGroup'
-    Metadata:
-      'AWS::CloudFormation::Designer':
-        id: 4ca1613b-f583-46f3-9026-7128a35ad298
 
-
-
-Metadata:
-  'AWS::CloudFormation::Designer':
-    4ca1613b-f583-46f3-9026-7128a35ad298:
-      size:
-        width: 150
-        height: 150
-      position:
-        x: 240
-        'y': 30
-      z: 1
-      embeds: []
-    f269a217-79fb-4eae-8208-a4deec7a228f:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: 90
-        'y': 360
-      z: 1
-      embeds: []
-    8328c0a8-55db-4c3b-b45b-a472a3edd56b:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: 90
-        'y': 240
-      z: 1
-      embeds: []
-      dependson:
-        - 0abf6704-018b-4a45-a0b2-3e354858f886
-    57f17668-aadd-4660-a549-11aad3ca57d6:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: 90
-        'y': 150
-      z: 1
-      embeds: []
-    8aaa28be-8007-4c88-9959-c15a3070e972:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: 420
-        'y': 90
-      z: 1
-      embeds: []
-    481fc6fe-058b-4b07-adcb-fdd16facf14d:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: 550
-        'y': 190
-      z: 1
-      embeds: []
-    7a15927c-ff26-44aa-bb6b-7496f761f041:
-      size:
-        width: 60
-        height: 60
-      position:
-        x: 260
-        'y': 270
-      z: 1
-      embeds: []

@@ -3,6 +3,7 @@ import { Box, Stack } from '@mui/system'
 // import { useStateValue } from '../../state/state'
 import { useNavigate } from 'react-router-dom'
 import { Button, IconButton, Typography, useTheme } from "@mui/material";
+import SectionCard from '../../components/SectionCard';
 // import cachePull from '../../utils/cachePull'
 
 
@@ -22,7 +23,7 @@ const Dashboard = () => {
     // }, [dispatch, navigate]);
 
     return (
-      <Box sx = {{color: "F8F8F8"}}>
+      <SectionCard>
         <Typography variant="h3" sx={{ color: "#000000"}}>
           Dashboard
         </Typography>
@@ -33,7 +34,7 @@ const Dashboard = () => {
         <ul>
           <li>Text here...</li>
         </ul>
-      </Box>
+      </SectionCard>
     );
 }
 
