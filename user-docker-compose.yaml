@@ -28,6 +28,15 @@ services:
       AGENT_URL: http://acapy_agent:9031
       MONGO_DB_URI: mongodb://controller_db:27017
 
+  flclient:
+      build:
+        context: "./user/FLclient"
+      container_name: flclient
+      ports:
+        - 4600:4600
+      networks:
+        - network
+
   controller_db:
     image: mongo:latest
     container_name: user-controller-mongo-db

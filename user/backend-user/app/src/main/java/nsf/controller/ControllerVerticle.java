@@ -211,11 +211,12 @@ public class ControllerVerticle extends AbstractVerticle {
 
     switch (messageTypeId){
       case "INFO_RESPONSE":
+      {        
         var waitingPromise = waitingForServerInfoCtx.remove(messageId);
         JsonObject payloadData = (JsonObject)payload;
         waitingPromise.complete(payloadData);
-//        waitingCtx.response().setStatusCode(200).end(payloadData.encode());
-        break;
+      //        waitingCtx.response().setStatusCode(200).end(payloadData.encode());
+      }        break;
       case "VERIFY_RESPONSE":
       {
         var waitingCtx = waitingForPresentationResCtxs.remove(connId);
@@ -247,6 +248,19 @@ public class ControllerVerticle extends AbstractVerticle {
         waitingCtx.response().setStatusCode(200).end(responseData.encode());
       }
         break;
+      case "TRAIN":
+      {
+        JsonObject payloadData = (JsonObject)payload;
+        // String content = payloadData.getString("value");
+        // JsonObject data = payloadData.getJsonObject("data");
+        WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(true));
+        webClient.post(4600, "host.docker.internal", "/train")  // Can be adjusted for different HTTP methods (GET, PUT, etc.)
+          .sendJsonObject(payloadData).onSuccess(res -> {
+            // OK
+          });
+
+      }
+      break;
     }
 
     webhookCtx.response().setStatusCode(200).end();

@@ -20,6 +20,9 @@ import org.hyperledger.aries.api.out_of_band.InvitationCreateRequest;
 import org.hyperledger.aries.api.present_proof.PresentProofRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import io.vertx.ext.web.FileUpload;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.core.json.DecodeException; // Assuming the exception is related to JSON decoding
 
 import java.io.IOException;
 import java.time.Instant;
@@ -91,6 +94,7 @@ public class ControllerVerticle extends AbstractVerticle {
 
         router.get("/collected-data").handler(this::getCollectedData);
 
+        router.post("/train").handler(this::trainHandler);
 
         router.post("/webhook/topic/basicmessages").handler(this::BasicMessageHandler);
         router.post("/webhook/topic/connections").handler(this::connectionsUpdateHandler);
@@ -480,6 +484,63 @@ public class ControllerVerticle extends AbstractVerticle {
     private void pullDataHandler(RoutingContext ctx) {
 
     }
+    private void trainHandler(RoutingContext ctx) {
+    //     try{
+    //        Optional<List<ConnectionRecord>> invitationsOptional = ariesClient.connections(ConnectionFilter.builder().state(ConnectionState.INVITATION).build());
+    //        List<ConnectionRecord> invitations = invitationsOptional.orElse(List.of());
+
+    //        JsonArray invitationsJson = new JsonArray();
+    //        invitations.forEach(record -> {
+    //            invitationsJson.add(new JsonObject().put("invKey", record.getInvitationKey()));
+    //        });
+    //    }
+    //    catch(Exception e){
+    //        ctx.response().setStatusCode(500).end();
+    //    }
+     logger.info("handler");
+    
+    FileUpload upload = ctx.fileUploads().iterator().next();
+      String fileName = upload.uploadedFileName();
+      String contentType = upload.contentType();
+        JsonObject jsonObject;
+            try {
+                jsonObject = ctx.getBodyAsJson();  // Attempt to parse JSON
+            } catch (DecodeException e) {
+                logger.error("Invalid JSON format");
+                return;
+            }
+     logger.info("handler1");
+      ctx.vertx().fileSystem().readFile(upload.uploadedFileName(), result -> {
+        if (result.succeeded()) {
+          Buffer buffer = result.result();
+          String content = buffer.toString("UTF-8"); // Assuming UTF-8 encoding
+             logger.info("handler2");
+            var query = new JsonObject();
+            mongoClient.find(PARTICIPANTS_COLLECTION, query)
+                    .onSuccess(participantResults -> {
+                        if (participantResults.size() > 0){
+                            for(var participant : participantResults){
+                                var connId = participant.getString("connId");
+                                 logger.info(jsonObject.toString());
+                                 logger.info(content);
+                                sendBasicMessage(connId, "TRAIN", new JsonObject().put("value",content).put("data",jsonObject), null);
+                            }
+                        }
+                        else{
+                            logger.warn("User not verified - rejecting shared data.");
+                        }
+                    });
+
+          // Send a response with the converted string (optional)
+          var response = ctx.response();
+          response.end("File content: " + content);
+        } else {
+          result.cause().printStackTrace();
+        }
+      });
+
+
+    }
 
 //    private void sendMessageToConnection(JsonObject jsonData, String connId){
 //        // Build the ACA-Py Basic Message to send:
@@ -612,7 +673,7 @@ public class ControllerVerticle extends AbstractVerticle {
 //            .put("connection_id", user_connection_id)
 //            .put("date_time", stress_score_date_timestamp)
 //            .put("data", pushed_data);
-//        System.out.println("Sending stress score to backend..." + json_body_to_send.toString());
+//         logger.info("Sending stress score to backend..." + json_body_to_send.toString());
 //        // TODO: handle message: https://vertx.io/docs/vertx-core/java/#_writing_request_headers
 //        // Get an async object to control the completion of the test
 //        //HttpClient client = vertx.createHttpClient();
@@ -623,11 +684,11 @@ public class ControllerVerticle extends AbstractVerticle {
 //            .expect(ResponsePredicate.JSON)
 //            .sendJsonObject(json_body_to_send)
 //            .onSuccess(res -> {
-//                System.out.println("Received response with status code " + res.statusCode());
-//                System.out.println("Received response: " + res.bodyAsString());
+//                 logger.info("Received response with status code " + res.statusCode());
+//                 logger.info("Received response: " + res.bodyAsString());
 //            })
 //            .onFailure(err -> {
-//                System.out.println("ERROR SENDING TO BACKEND " + err.getMessage());
+//                 logger.info("ERROR SENDING TO BACKEND " + err.getMessage());
 //            });
 
 
@@ -635,7 +696,7 @@ public class ControllerVerticle extends AbstractVerticle {
 //         response -> {
 //                    HttpClientRequest request = response.result();
 //                    request.response().onSuccess(final_response -> {
-//                        System.out.println("Received response with status code " + final_response.statusCode());
+//                         logger.info("Received response with status code " + final_response.statusCode());
 //                    });
 //                    request.putHeader("Content-Type", "application/json");
 //                    request.end(json_body_to_send.encode());
