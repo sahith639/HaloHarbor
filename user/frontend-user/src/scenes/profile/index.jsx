@@ -11,13 +11,15 @@ import axios from 'axios'
 import config from '../../utils/config'
 import BCGovCredentialDetailModal from '../../components/BCGovCredentialDetailModal';
 import { ToastContainer, toast } from 'react-toastify';
+import ExampleDataIntegrateModal from '../../components/ExampleDataIntegrateModal';
 
 
 const Profile = () => {
     const theme = useTheme();
     const colors = theme.palette;
     
-    const [spotifyModalOpen, setSpotifyModalOpen] = useState(false);
+    const [dataSourceModalKey, setDataSourceModalKey] = useState(null);
+
     const [bcGovCredentialModalOpen, setBcGovCredentialModalOpen] = useState(false);
     const [bcGovCredentialDetailModalOpen, setBcGovCredentialDetailModalOpen] = useState(false);
 
@@ -78,11 +80,21 @@ const Profile = () => {
           
           </Typography>
           
+          <div>
           {("spotify" in dataSources) ? (
-              <Button variant="contained" onClick={() => setSpotifyModalOpen(true)} color="success">Spotify</Button>
+              <Button variant="contained" onClick={() => setDataSourceModalKey("spotify")} color="success">Spotify</Button>
             ) : (
-              <Button variant="contained" onClick={() => setSpotifyModalOpen(true)} style={{ color: '#555', backgroundColor: '#eee' }}>Spotify</Button>
+              <Button variant="contained" onClick={() => setDataSourceModalKey("spotify")} style={{ color: '#555', backgroundColor: '#eee' }}>Spotify</Button>
             )}
+          </div>
+
+          <div>
+          {("test-example" in dataSources) ? (
+              <Button variant="contained" onClick={() => setDataSourceModalKey("test-example")} color="success">Example Data Source</Button>
+            ) : (
+              <Button variant="contained" onClick={() => setDataSourceModalKey("test-example")} style={{ color: '#555', backgroundColor: '#eee' }}>Example Data Source</Button>
+            )}
+          </div>
           
 
           {/* TODO put mock Google Maps and Metriport buttons as well */}
@@ -103,7 +115,9 @@ const Profile = () => {
         </SectionCard>
 
 
-        <SpotifyIntegrateModal isIntegrated={("spotify" in dataSources)} isOpen={spotifyModalOpen} onClose={() => setSpotifyModalOpen(false)} onListingUpdate={updateDataSources} />
+        <SpotifyIntegrateModal isIntegrated={("spotify" in dataSources)} isOpen={dataSourceModalKey == "spotify"} onClose={() => setDataSourceModalKey(null)} onListingUpdate={updateDataSources} />
+
+        <ExampleDataIntegrateModal isIntegrated={("test-example" in dataSources)} isOpen={dataSourceModalKey == "test-example"} onClose={() => setDataSourceModalKey(null)} onListingUpdate={updateDataSources} />
 
         <ObtainBCGovCredentialModal isOpen={bcGovCredentialModalOpen} onClose={() => setBcGovCredentialModalOpen(false)} onListingUpdate={updateCredentials} setCretModalOpen={() => setBcGovCredentialDetailModalOpen(true)} />
         <BCGovCredentialDetailModal isOpen={bcGovCredentialDetailModalOpen} onClose={() => setBcGovCredentialDetailModalOpen(false)} onListingUpdate={updateCredentials} />

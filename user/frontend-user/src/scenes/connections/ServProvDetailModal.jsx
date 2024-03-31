@@ -146,7 +146,7 @@ const ServProvDetailModal = ({ isOpen, onClose, summaryData, onServProvsUpdate }
         
 
         <Box sx={{ paddingTop: "15px"}}>
-          <DataMenu isUserView={true} dataSources={dataSources} dataMenuSelection={dataMenuSelection} setDataMenuSelection={setDataMenuSelection}></DataMenu>
+          <DataMenu isUserView={true} dataSources={dataSources} dataMenuSelection={dataMenuSelection} setDataMenuSelection={setDataMenuSelection} refreshDataSources={updateDataSources}></DataMenu>
           <Divider sx={{ borderWidth: '2px', marginY: '10px' }} />
         </Box>
 

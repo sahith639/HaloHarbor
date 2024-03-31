@@ -8,14 +8,15 @@ import FormGroup from '@mui/material/FormGroup';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Switch from '@mui/material/Switch';
 import SpotifyIntegrateModal from './SpotifyIntegrateModal.jsx';
+import ExampleDataIntegrateModal from './ExampleDataIntegrateModal.jsx';
 
-const DataMenu = ({isUserView, dataSources, dataMenuSelection, setDataMenuSelection}) => {
-  const [spotifyModalOpen, setSpotifyModalOpen] = useState(false);
+
+const DataMenu = ({isUserView, dataSources, dataMenuSelection, setDataMenuSelection, refreshDataSources}) => {
+  const [integrateModalKey, setIntegrateModalKey] = useState(null);
 
   console.log("data menu:", dataMenuSelection);
   return (
     <Box>
-      
       {Object.entries(dataMenuSelection).map(([dataSourceKey, dataSourceValue]) => (
         <div key={dataSourceKey}>
           {(dataSourceKey in dataSources) ?
@@ -24,7 +25,7 @@ const DataMenu = ({isUserView, dataSources, dataMenuSelection, setDataMenuSelect
           ) : (
             <div style={{ display: 'flex', alignItems: 'center' }}>
               <Typography variant="h6">{dataSourceValue.name}</Typography>
-              <Button sx={{ margin: "5px" }} variant="contained" onClick={() => setSpotifyModalOpen(true)} color="secondary">
+              <Button sx={{ margin: "5px" }} variant="contained" onClick={() => setIntegrateModalKey(dataSourceKey)} color="secondary">
                 Integrate
               </Button>
             </div>
@@ -37,14 +38,10 @@ const DataMenu = ({isUserView, dataSources, dataMenuSelection, setDataMenuSelect
           </FormGroup>
         </div>
       ))}
-      
 
-      {/* <Typography variant="h6" paddingTop="20px">Google Maps</Typography>
-      <FormGroup>
-        <DataItem dataKey="spotify:fav-artist" title="Zip Code"></DataItem>
-      </FormGroup> */}
+      <SpotifyIntegrateModal isOpen={integrateModalKey == "spotify"} onClose={() => setIntegrateModalKey(null)} onListingUpdate={refreshDataSources} />
 
-      <SpotifyIntegrateModal isOpen={spotifyModalOpen} onClose={() => setSpotifyModalOpen(false)} onListingUpdate={()=>{}} />
+      <ExampleDataIntegrateModal isOpen={integrateModalKey == "test-example"} onClose={() => setIntegrateModalKey(null)} onListingUpdate={refreshDataSources} />
     </Box>
   );
 };

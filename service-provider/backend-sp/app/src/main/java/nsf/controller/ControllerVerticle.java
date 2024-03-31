@@ -194,8 +194,8 @@ public class ControllerVerticle extends AbstractVerticle {
                               }
                             }
                           },
-                          "other-example": {
-                            "name": "Other Example Source",
+                          "test-example": {
+                            "name": "Test Example Data Source",
                             "items": {
                               "example": {
                                 "name": "Example Data Item"

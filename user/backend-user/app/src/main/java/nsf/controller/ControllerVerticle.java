@@ -486,6 +486,12 @@ public class ControllerVerticle extends AbstractVerticle {
     return promise.future();
   }
 
+  private Future<String> fetchExampleData(){
+    Promise<String> promise = Promise.promise();
+    promise.complete("(example data)");
+    return promise.future();
+  }
+
   private void dataPullCallback(Supplier<Future> futureSupplier, Promise promise, String dataSourceKey, String dataItemKey, String servProvId){
     JsonObject lastSharedQuery = new JsonObject()
         .put("_id", dataSourceKey + "-" + dataItemKey + "--" + servProvId);
@@ -565,6 +571,15 @@ public class ControllerVerticle extends AbstractVerticle {
                         break;
                     }
                     break;
+
+                  case "test-example":
+                    switch (dataItemKey) {
+                      case "example":
+                        dataPullCallback(this::fetchExampleData, promise, dataSourceKey, dataItemKey, servProvId);
+                        break;
+                    }
+                    break;
+
                   default:
                     logger.error("unknown data source: " + dataSourceKey);
                     break;
@@ -787,58 +802,73 @@ public class ControllerVerticle extends AbstractVerticle {
     });
   }
 
+  private void saveDataSourceDoc(String dataSourceId, JsonObject extraData, RoutingContext ctx){
+    JsonObject dataSourceDoc = extraData
+        .put("_id", dataSourceId) // sets ID to prevent duplicates / maintain idempotency.
+        .put("data_source_id", dataSourceId);
+
+    mongoClient.save("data_sources", dataSourceDoc, h -> {
+      if (h.succeeded()){
+        ctx.response().setStatusCode(200).end();
+      }
+      else{
+        ctx.response().setStatusCode(500).end();
+      }
+    });
+  }
+
   private void integrateDataSource(RoutingContext ctx){
     String dataSourceId = ctx.body().asJsonObject().getString("dataSourceId");
-    String code = ctx.body().asJsonObject().getString("code");
-    String redirectUri = ctx.body().asJsonObject().getString("redirectUri");
 
-    WebClient webClient = WebClient.create(vertx);
+    switch (dataSourceId){
+      case "spotify":
+        String code = ctx.body().asJsonObject().getString("code");
+        String redirectUri = ctx.body().asJsonObject().getString("redirectUri");
 
-    String tokenEndpoint = "https://accounts.spotify.com/api/token";
-    webClient.postAbs(tokenEndpoint)
-        .putHeader("Content-Type", "application/x-www-form-urlencoded")
-        .basicAuthentication(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
-        .sendForm(
-            MultiMap.caseInsensitiveMultiMap()
-                .add("grant_type", "authorization_code")
-                .add("code", code)
-                .add("redirect_uri", redirectUri),
-            ar -> {
-              if (ar.succeeded()) {
-                JsonObject responseBody = ar.result().bodyAsJsonObject();
-                String accessToken = responseBody.getString("access_token");
-                String refreshToken = responseBody.getString("refresh_token");
+        WebClient webClient = WebClient.create(vertx);
 
-                logger.info("spotify response: " + ar.result().statusCode() + " - " + responseBody.encodePrettily());
-                logger.info("Access Token: " + accessToken);
-                logger.info("Refresh Token: " + refreshToken);
+        String tokenEndpoint = "https://accounts.spotify.com/api/token";
+        webClient.postAbs(tokenEndpoint)
+            .putHeader("Content-Type", "application/x-www-form-urlencoded")
+            .basicAuthentication(SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET)
+            .sendForm(
+                MultiMap.caseInsensitiveMultiMap()
+                    .add("grant_type", "authorization_code")
+                    .add("code", code)
+                    .add("redirect_uri", redirectUri),
+                ar -> {
+                  if (ar.succeeded()) {
+                    JsonObject responseBody = ar.result().bodyAsJsonObject();
+                    String accessToken = responseBody.getString("access_token");
+                    String refreshToken = responseBody.getString("refresh_token");
 
-                if (refreshToken == null){
-                  logger.info("null refresh token, ignoring.");
-                  return;
-                }
+                    logger.info("spotify response: " + ar.result().statusCode() + " - " + responseBody.encodePrettily());
+                    logger.info("Access Token: " + accessToken);
+                    logger.info("Refresh Token: " + refreshToken);
 
-                JsonObject dataSourceDoc = new JsonObject()
-                    .put("_id", dataSourceId) // set ID to prevent duplicates / maintain idempotency.
-                    .put("data_source_id", dataSourceId)
-                    .put("expires_epoch_seconds", 0)
+                    if (refreshToken == null){
+                      logger.info("null refresh token, ignoring.");
+                      return;
+                    }
+
+                    saveDataSourceDoc(dataSourceId,
+                        new JsonObject().put("expires_epoch_seconds", 0)
 //                    .put("expires_epoch_seconds", Instant.now().getEpochSecond() + 1800)
 //                    .put("temp_access_token", accessToken)
-                    .put("refresh_token", refreshToken);
+                            .put("refresh_token", refreshToken),
+                      ctx);
 
-                mongoClient.save("data_sources", dataSourceDoc, h -> {
-                  if (h.succeeded()){
-                    ctx.response().setStatusCode(200).end();
-                  }
-                  else{
-                    ctx.response().setStatusCode(500).end();
+                  } else {
+                    // Handle failure
+                    ctx.response().setStatusCode(500).end("Error exchanging code for tokens");
                   }
                 });
-              } else {
-                // Handle failure
-                ctx.response().setStatusCode(500).end("Error exchanging code for tokens");
-              }
-            });
+        break;
+
+      case "test-example":
+        saveDataSourceDoc(dataSourceId, new JsonObject(), ctx);
+        break;
+    }
   }
 
   private void getDataSources(RoutingContext ctx){
