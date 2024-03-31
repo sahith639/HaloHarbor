@@ -42,6 +42,9 @@ public class ControllerVerticle extends AbstractVerticle {
 
     Random random = new Random();
 
+    private Boolean isUsingCredentials;
+
+
     public ControllerVerticle(MongoClient mongoClient, AriesClient ariesClient) {
         this.mongoClient = mongoClient;
         this.ariesClient = ariesClient;
@@ -111,6 +114,10 @@ public class ControllerVerticle extends AbstractVerticle {
                     promise.complete();
                 })
                 .onFailure(promise::fail);
+
+
+        isUsingCredentials = !Boolean.parseBoolean(System.getenv().get("SKIP_VERIFICATION"));
+        logger.info("Using credentials: " + isUsingCredentials);
     }
 
     private void getCollectedData(RoutingContext ctx){
@@ -260,27 +267,41 @@ public class ControllerVerticle extends AbstractVerticle {
             String state = message.getString("state");
             String initiator = message.getString("initiator");
 
-            if (initiator.equals("self") && state.equals("verified")){
-                var connectionOptional = ariesClient.connectionsGetById(userConnectionId);
-                var connection = connectionOptional.orElseThrow();
-
-                JsonObject document = new JsonObject()
-                    .put("_id", userConnectionId)
-                    .put("connId", userConnectionId)
-                    .put("createdAt", Instant.now().getEpochSecond())
-                    .put("invitationKey", connection.getInvitationKey());
-                mongoClient.save(PARTICIPANTS_COLLECTION, document);
-
-                sendBasicMessage(userConnectionId, "VERIFY_RESPONSE", true, null);
-
-                logger.info("added participant: " + userConnectionId);
+            if (isUsingCredentials){
+                if (initiator.equals("self") && state.equals("verified")){
+                    addParticipant(userConnectionId);
+                    sendBasicMessage(userConnectionId, "VERIFY_RESPONSE", true, null);
+                }
             }
+//            else{
+//                if (initiator.equals("self")){
+//                    addParticipant(userConnectionId, invitationKey);
+//                }
+//            }
 
             ctx.response().setStatusCode(200).end();
         }
         catch(Exception e){
             ctx.response().setStatusCode(500).end();
         }
+    }
+
+    /**
+     * Adds a verified participant.
+     */
+    private void addParticipant(String userConnectionId) throws IOException {
+        var connectionOptional = ariesClient.connectionsGetById(userConnectionId);
+        var connection = connectionOptional.orElseThrow();
+        var invitationKey = connection.getInvitationKey();
+
+        JsonObject document = new JsonObject()
+            .put("_id", userConnectionId)
+            .put("connId", userConnectionId)
+            .put("createdAt", Instant.now().getEpochSecond())
+            .put("invitationKey", invitationKey);
+        mongoClient.save(PARTICIPANTS_COLLECTION, document);
+
+        logger.info("added participant: " + userConnectionId);
     }
 
     private void connectionsUpdateHandler(RoutingContext ctx){
@@ -297,23 +318,38 @@ public class ControllerVerticle extends AbstractVerticle {
             if (state.equals("active")){
                 logger.info("connection completed, requesting present_proof: " + userConnectionId);
 
+
+                ariesClient.presentProofSendRequest(PresentProofRequest.builder()
+                    .connectionId(userConnectionId)
+                    .autoVerify(true)
+                    .proofRequest(PresentProofRequest.ProofRequest.builder()
+                        .name("demo service provider")
+                        .requestedAttributes(Map.of(
+                            "DL_number_referent",
+                            PresentProofRequest.ProofRequest.ProofRequestedAttributes.builder()
+                                .name("DL_number")
+                                .clearRestrictions() // E.g. Could set to UTyGiqDxFVe5dyboi87kp2:3:CL:439783:issuer-kit-demo
+                                .build()))
+                        .build())
+                    .build());
+
+
                 JsonObject serverBannerData = new JsonObject()
                     .put("name", "Demo Service Provider")
                     .put("desc", "Example service provider for M.S. project prototype implementation demo. Requires demo credential to connect.");
+                sendBasicMessage(userConnectionId, "CONN_RESPONSE",
+                    new JsonObject()
+                        .put("bannerData", serverBannerData)
+                        .put("requiresCredential", isUsingCredentials),
+                    null);
 
-                ariesClient.presentProofSendRequest(PresentProofRequest.builder()
-                        .connectionId(userConnectionId)
-                        .autoVerify(true)
-                        .proofRequest(PresentProofRequest.ProofRequest.builder()
-                            .name(serverBannerData.encode())
-                            .requestedAttributes(Map.of(
-                                "DL_number_referent",
-                                PresentProofRequest.ProofRequest.ProofRequestedAttributes.builder()
-                                    .name("DL_number")
-                                    .clearRestrictions() // TODO UTyGiqDxFVe5dyboi87kp2:3:CL:439783:issuer-kit-demo
-                                    .build()))
-                            .build())
-                        .build());
+                if (isUsingCredentials){
+
+                }
+                else{
+                    addParticipant(userConnectionId);
+                }
+
             }
 
             ctx.response().setStatusCode(200).end();
@@ -527,7 +563,7 @@ public class ControllerVerticle extends AbstractVerticle {
                             }
                         }
                         else{
-                            logger.warn("User not verified - rejecting shared data.");
+                            logger.warn("User entry doesn't exist (e.g., the user might not have verified) - rejecting shared data.");
                         }
                     });
 

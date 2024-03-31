@@ -76,19 +76,7 @@ public abstract class BaseServProvService {
     });
   }
 
-  /**
-   * REMARK: Currently this should only be called when the service provider is initially added, as there seems to be
-   * no reason that you would want to "rename" or change this mapping in the future (although that is possible if we
-   * want).
-   */
-  public Future<String> setServProvConnId(String connId, String presentationExchangeId, JsonObject serverBannerData){
-    JsonObject document = new JsonObject()
-        .put("_id", connId)
-        .put("connId", connId)
-        .put("presentationExchangeId", presentationExchangeId)
-        .put("bannerData", serverBannerData);
-    return this.client().save(this.collection(), document);
-  }
+
 
   public Future<MongoClientDeleteResult> deleteServProvConnMapping(String servProvId) {
     JsonObject query = new JsonObject()

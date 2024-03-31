@@ -36,6 +36,7 @@ services:
     environment:
       MONGO_DB_URI: mongodb://backend_db:27017
       AGENT_URL: http://acapy_agent:8021
+      SKIP_VERIFICATION: "${SKIP_VERIFICATION}"
 
   backend_db:
     image: mongo:latest

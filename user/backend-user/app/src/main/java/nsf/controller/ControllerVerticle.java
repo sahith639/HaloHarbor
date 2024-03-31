@@ -53,7 +53,7 @@ public class ControllerVerticle extends AbstractVerticle {
   /**
    * Wait between making a connection to an SP and getting their presentation_proof request.
    */
-  private final Map<String, RoutingContext> waitingForPresentationReqCtxs = new ConcurrentHashMap<>();
+  private final Map<String, Promise<String>> waitingForPresentationReqCtxs = new ConcurrentHashMap<>();
 
   /**
    * Wait between sending a presentation_proof to an SP and receiving a basic message response, confirming if it was verified or not.
@@ -64,9 +64,9 @@ public class ControllerVerticle extends AbstractVerticle {
 
   private final Map<String, Promise<JsonObject>> waitingForServerInfoCtx = new ConcurrentHashMap<>();
   private final Map<String, RoutingContext> waitingForSharedDataAckCtx = new ConcurrentHashMap<>();
+  private final Map<String, Promise<JsonObject>> waitingForConnResponse = new ConcurrentHashMap<>();
 
   Random random = new Random();
-
 
   public ControllerVerticle(MongoClient mongoClient, AriesClient ariesClient, BaseAccessControlService accessControlService,
                             BaseServProvService servProvService, BaseDataService dataService) {
@@ -210,6 +210,13 @@ public class ControllerVerticle extends AbstractVerticle {
     logger.info("Received basic message: " + message.encodePrettily());
 
     switch (messageTypeId){
+      case "CONN_RESPONSE":
+      {
+        JsonObject payloadData = (JsonObject)payload;
+        var promise = waitingForConnResponse.remove(connId);
+        promise.complete(payloadData);
+      }
+      break;
       case "INFO_RESPONSE":
       {        
         var waitingPromise = waitingForServerInfoCtx.remove(messageId);
@@ -908,21 +915,23 @@ public class ControllerVerticle extends AbstractVerticle {
 
   private void verifyCredentialWithServProvider(RoutingContext ctx){
     String presentationExchangeId = ctx.request().getParam("presentationExchangeId");
-    String credentialId = ctx.request().getParam("credId"); // frontend has Cred ID from previous request to checkServiceProviderCredentialRequirements.
+    String credentialId = ctx.request().getParam("credId"); // frontend has Cred ID from detail.relevantCredential.
 
     Optional<PresentationExchangeRecord> presentationProofResponseOptional = null;
     try {
+      var requiredAttributesMap = Map.of(
+          "DL_number_referent",
+          SendPresentationRequest.IndyRequestedCredsRequestedAttr.builder()
+              .credId(credentialId)
+              .revealed(true)
+              .build());
+
       presentationProofResponseOptional = ariesClient.presentProofRecordsSendPresentation(
           presentationExchangeId,
           SendPresentationRequest.builder()
               .autoRemove(true)
               .requestedAttributes(
-                  Map.of(
-                      "DL_number_referent",
-                      SendPresentationRequest.IndyRequestedCredsRequestedAttr.builder()
-                          .credId(credentialId)
-                          .revealed(true)
-                          .build()))
+                  requiredAttributesMap)
               .build());
 
       var connId = presentationProofResponseOptional.get().getConnectionId();
@@ -1036,29 +1045,15 @@ public class ControllerVerticle extends AbstractVerticle {
         try {
           var presentationRecordOptional = ariesClient.presentProofRecordsGetById(presentationExchangeId);
           var presentationRecord = presentationRecordOptional.orElseThrow();
-          String presReqName = presentationRecord.getPresentationRequest().getName();
-          JsonObject serverBannerData = new JsonObject(presReqName);
+//          String presReqName = presentationRecord.getPresentationRequest().getName();
+//          JsonObject serverBannerData = new JsonObject(presReqName);
 
-          servProvService.setServProvConnId(connId, presentationExchangeId, serverBannerData)
-              .onSuccess((Void) -> {
-                logger.info("Added Service Provider mapping.");
-
-                getServProvDetail(connId)
-                    .onSuccess(servProvData -> {
-                      waitingCtx.response().end(servProvData.encode());
-                    })
-                    .onFailure(e -> {
-                      waitingCtx.response().setStatusCode(500).send(e.toString());
-                    });
-              })
-              .onFailure((Throwable e) -> {
-                logger.error("Failed to set ServProv mapping.", e);
-                waitingCtx.response().setStatusCode(500).send(e.toString());
-              });
+          waitingCtx.complete(presentationExchangeId);
 
         } catch (IOException e) {
           logger.error("Failed to get presentation record.", e);
-          waitingCtx.response().setStatusCode(500).send(e.toString());
+          waitingCtx.fail(e);
+//          waitingCtx.response().setStatusCode(500).send(e.toString());
         }
       }
 
@@ -1150,7 +1145,60 @@ public class ControllerVerticle extends AbstractVerticle {
       var oobRecord = oobRecordOptional.orElseThrow();
       String connId = String.valueOf(oobRecord.getConnectionId());
 
-      waitingForPresentationReqCtxs.put(connId, ctx);
+//      waitingForPresentationReqCtxs.put(connId, ctx);
+      Promise<String> presentationReqPromise = Promise.promise();
+
+      Promise<JsonObject> connResponsePromise = Promise.promise();
+      CompositeFuture.all(connResponsePromise.future(), presentationReqPromise.future())
+          .onSuccess(r -> {
+            JsonObject connResponse = r.resultAt(0);
+
+            boolean requiresCredential = connResponse.getBoolean("requiresCredential");
+
+            JsonObject document = new JsonObject()
+                .put("_id", connId)
+                .put("connId", connId)
+                .put("bannerData", connResponse.getJsonObject("bannerData"));
+
+            if (requiresCredential){
+              String presentationExchangeId = r.resultAt(1);
+              document = document
+                  .put("presentationExchangeId", presentationExchangeId);
+            }
+            else{
+              document = document
+                  .put("presentationExchangeId", null)
+                  .put("verifiedWith", true);
+            }
+
+//          if (!isUsingCredentials){
+//            document = document
+//                .put("presentationExchangeId", null);
+//          }
+
+            this.mongoClient.save("service_providers", document)
+                .onSuccess((Void) -> {
+                  logger.info("Added Service Provider mapping.");
+
+                  getServProvDetail(connId)
+                      .onSuccess(servProvData -> {
+                        ctx.response().end(servProvData.encode());
+                      })
+                      .onFailure(e -> {
+                        ctx.response().setStatusCode(500).send(e.toString());
+                      });
+                })
+                .onFailure((Throwable e) -> {
+                  logger.error("Failed to set ServProv mapping.", e);
+                  ctx.response().setStatusCode(500).send(e.toString());
+                });
+          })
+          .onFailure(e -> {
+            logger.error(e.toString());
+          });
+
+      waitingForConnResponse.put(connId, connResponsePromise);
+      waitingForPresentationReqCtxs.put(connId, presentationReqPromise);
     } catch (IOException e) {
       logger.error("Failed to add Service Provider.", e);
       ctx.response().setStatusCode(500).end();
