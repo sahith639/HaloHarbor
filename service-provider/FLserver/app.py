@@ -62,7 +62,23 @@ def aggregate_client_updates(client_update_files):
   aggregated_weights = [sum(weights) / len(weights) for weights in zip(*all_client_weights)]
   return aggregated_weights
 
+def get_size_in_mb(text):
+  """
+  Calculates the size of a string in megabytes (MB).
 
+  Args:
+      text: The string to calculate the size for.
+
+  Returns:
+      The size of the string in megabytes, rounded to two decimal places.
+  """
+  # Get the size of the string in bytes
+  string_size_bytes = len(text.encode('utf-8'))
+
+  # Convert bytes to megabytes and round to two decimal places
+  size_in_mb = round(string_size_bytes / (1024 * 1024), 2)
+
+  return size_in_mb
 # 3. Federated Learning Loop:
 def federated_training(global_model, num_rounds):
   for round_num in range(num_rounds):
@@ -74,8 +90,9 @@ def federated_training(global_model, num_rounds):
         # Trigger client training
         url = 'http://host.docker.internal:9081/train'
         with open('./global_update.pkl', 'rb') as file:
-                files = {'file': file}  # Prepare the file to be sent in the POST request
-                response = requests.post(url, files=files,data={'client_id':i,'epochs':3})  # Send the POST request
+                loaded_data = pickle.load(file)
+                print(get_size_in_mb(str(pickle.dumps(loaded_data))))
+                response = requests.post(url, data={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':i,'epochs':3}})  
                 if response.status_code == 200:
                     print("File successfully sent to API.")
                 else:

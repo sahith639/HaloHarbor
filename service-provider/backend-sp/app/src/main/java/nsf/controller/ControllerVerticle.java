@@ -23,7 +23,8 @@ import org.slf4j.LoggerFactory;
 import io.vertx.ext.web.FileUpload;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.DecodeException; // Assuming the exception is related to JSON decoding
-
+import io.vertx.ext.web.client.WebClient;
+import io.vertx.ext.web.client.WebClientOptions;
 import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -67,7 +68,8 @@ public class ControllerVerticle extends AbstractVerticle {
 //            .allowedHeader("Access-Control-Allow-Origin")
 //            .allowedHeader("Access-Control-Allow-Credentials")
 //            .allowedHeader("Content-Type"));
-        router.route().handler(BodyHandler.create());
+        BodyHandler bodyHandler = BodyHandler.create().setBodyLimit(-1);
+        router.route().handler(bodyHandler);
 
         router.route().handler(ctx -> {
             ctx.response()
@@ -99,14 +101,13 @@ public class ControllerVerticle extends AbstractVerticle {
 
         router.post("/train").handler(this::trainHandler);
 
-       router.get("/train-response").handler(this::trainResponseHandler);
-
         router.post("/webhook/topic/basicmessages").handler(this::BasicMessageHandler);
         router.post("/webhook/topic/connections").handler(this::connectionsUpdateHandler);
         router.post("/webhook/topic/out_of_band").handler(this::outOfBandHandler);
         router.post("/webhook/topic/present_proof").handler(this::presentProofUpdate);
 
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9081"));
+        
         vertx.createHttpServer()
                 .requestHandler(router)
                 .listen(port)
@@ -523,63 +524,6 @@ public class ControllerVerticle extends AbstractVerticle {
 
     }
 
-    private void trainResponseHandler(RoutingContext ctx) {
-    //     try{
-    //        Optional<List<ConnectionRecord>> invitationsOptional = ariesClient.connections(ConnectionFilter.builder().state(ConnectionState.INVITATION).build());
-    //        List<ConnectionRecord> invitations = invitationsOptional.orElse(List.of());
-
-    //        JsonArray invitationsJson = new JsonArray();
-    //        invitations.forEach(record -> {
-    //            invitationsJson.add(new JsonObject().put("invKey", record.getInvitationKey()));
-    //        });
-    //    }
-    //    catch(Exception e){
-    //        ctx.response().setStatusCode(500).end();
-    //    }
-        logger.info("handler");
-        
-        FileUpload upload = ctx.fileUploads().iterator().next();
-        String fileName = upload.uploadedFileName();
-        String contentType = upload.contentType();
-            JsonObject jsonObject;
-                try {
-                    jsonObject = ctx.getBodyAsJson();  // Attempt to parse JSON
-                } catch (DecodeException e) {
-                    logger.error("Invalid JSON format");
-                    return;
-                }
-        logger.info("handler1");
-        ctx.vertx().fileSystem().readFile(upload.uploadedFileName(), result -> {
-            if (result.succeeded()) {
-            Buffer buffer = result.result();
-            String content = buffer.toString("UTF-8"); // Assuming UTF-8 encoding
-                logger.info("handler2");
-                var query = new JsonObject();
-                mongoClient.find("service_providers", query)
-                        .onSuccess(servProvData -> {
-                        String connId = servProvData.get(0).getString("connId");
-                            if (participantResults.size() > 0){
-                                for(var participant : participantResults){
-                                    logger.info(jsonObject.toString());
-                                    logger.info(content);
-                                    sendBasicMessage(connId, "TRAIN_RESPONSE", new JsonObject().put("value",content).put("data",jsonObject), null);
-                                }
-                            }
-                            else{
-                                logger.warn("User not verified - rejecting shared data.");
-                            }
-                        });
-
-            // Send a response with the converted string (optional)
-            var response = ctx.response();
-            response.end("File content: " + content);
-            } else {
-            result.cause().printStackTrace();
-            }
-        });
-
-
-    }
 
 
 
@@ -599,22 +543,17 @@ public class ControllerVerticle extends AbstractVerticle {
     //    }
      logger.info("handler");
     
-    FileUpload upload = ctx.fileUploads().iterator().next();
-      String fileName = upload.uploadedFileName();
-      String contentType = upload.contentType();
         JsonObject jsonObject;
             try {
-                jsonObject = ctx.getBodyAsJson();  // Attempt to parse JSON
+                jsonObject = ctx.getBodyAsJson();
+                String jsonString = jsonObject.encodePrettily();  // Or use .encode() for compact format
+                logger.info("Processing data: " + jsonString);
+                  // Attempt to parse JSON
             } catch (DecodeException e) {
                 logger.error("Invalid JSON format");
                 return;
             }
      logger.info("handler1");
-      ctx.vertx().fileSystem().readFile(upload.uploadedFileName(), result -> {
-        if (result.succeeded()) {
-          Buffer buffer = result.result();
-          String content = buffer.toString("UTF-8"); // Assuming UTF-8 encoding
-             logger.info("handler2");
             var query = new JsonObject();
             mongoClient.find(PARTICIPANTS_COLLECTION, query)
                     .onSuccess(participantResults -> {
@@ -622,23 +561,13 @@ public class ControllerVerticle extends AbstractVerticle {
                             for(var participant : participantResults){
                                 var connId = participant.getString("connId");
                                  logger.info(jsonObject.toString());
-                                 logger.info(content);
-                                sendBasicMessage(connId, "TRAIN", new JsonObject().put("value",content).put("data",jsonObject), null);
+                                sendBasicMessage(connId, "TRAIN", jsonObject, null);
                             }
                         }
                         else{
                             logger.warn("User entry doesn't exist (e.g., the user might not have verified) - rejecting shared data.");
                         }
                     });
-
-          // Send a response with the converted string (optional)
-          var response = ctx.response();
-          response.end("File content: " + content);
-        } else {
-          result.cause().printStackTrace();
-        }
-      });
-
 
     }
 
@@ -756,6 +685,16 @@ public class ControllerVerticle extends AbstractVerticle {
             case "SHARED_DATA": // a user shared data to us.
                 JsonArray payloadData = basicMessagePackage.getJsonArray("payload");
                 saveSharedData(connId, payloadData, messageId);
+                break;
+            case "TRAIN_RESPONSE":
+                JsonObject payloadResponseData = (JsonObject)basicMessagePackage.getJsonObject("payload");
+                // String content = payloadData.getString("value");
+                // JsonObject data = payloadData.getJsonObject("data");
+                WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(true));
+                webClient.post(4500, "host.docker.internal", "/response")  // Can be adjusted for different HTTP methods (GET, PUT, etc.)
+                .sendJsonObject(payloadResponseData).onSuccess(res -> {
+                    // OK
+                });
                 break;
             case "ABANDONED_DATA_CONN": // a user left / closed a connection with us.
                 break;

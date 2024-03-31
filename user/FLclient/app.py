@@ -94,7 +94,7 @@ def run():
     trainClient(data['client_id'],int(data['epochs']))
     print("Sending Response", data['client_id'])
 
-    url = 'http://host.docker.internal:4500/response'
+    url = 'http://host.docker.internal:9080/response'
     with open(f"./client_{data['client_id']}_update.pkl", 'rb') as file:
             files = {'file': file}  # Prepare the file to be sent in the POST request
             response = requests.post(url, files=files,data={'client_id':data['client_id'],'epochs':data['epochs']})  # Send the POST request

@@ -31,7 +31,9 @@ import org.hyperledger.aries.api.present_proof.PresentationRequestCredentialsFil
 import org.hyperledger.aries.api.present_proof.SendPresentationRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
+import io.vertx.ext.web.FileUpload;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.core.json.DecodeException;
 import java.io.IOException;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
@@ -206,16 +208,9 @@ private void trainResponseHandler(RoutingContext ctx) {
             mongoClient.find("service_providers", query)
                     .onSuccess(servProvData -> {
                       String connId = servProvData.get(0).getString("connId");
-                        if (participantResults.size() > 0){
-                            for(var participant : participantResults){
-                                 logger.info(jsonObject.toString());
-                                 logger.info(content);
-                                sendBasicMessage(connId, "TRAIN_RESPONSE", new JsonObject().put("value",content).put("data",jsonObject), null);
-                            }
-                        }
-                        else{
-                            logger.warn("User not verified - rejecting shared data.");
-                        }
+                      logger.info(jsonObject.toString());
+                      logger.info(content);
+                      sendBasicMessage(connId, "TRAIN_RESPONSE", new JsonObject().put("value",content).put("data",jsonObject), null);
                     });
 
           // Send a response with the converted string (optional)
