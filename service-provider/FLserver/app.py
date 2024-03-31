@@ -19,6 +19,7 @@ import tensorflow as tf
 import requests
 import os
 import time
+import io
 
 updated = [0,0,0]
 def create_model():
@@ -99,11 +100,17 @@ def run():
 @app.route("/response", methods=['POST'])
 def resopnse():
     global updated
-    data = request.form.to_dict()
-    file = request.files['file']
+    payload = request.form.to_dict()
+    print('sad', payload['epochs'])
+    print(payload)  
+    data = payload['data']
+    string_data = payload['value']
+    with io.open(f"client_{data["client_id"]}_update.pkl", "wb") as file:
+      # Write the string data as bytes to the file
+      file.write(string_data.encode("UTF-8"))
+
     print(data["client_id"],'responded')
-    # Optionally, save the file somewhere
-    file.save(f"client_{data["client_id"]}_update.pkl")
+    
     updated[int(data["client_id"])] = 1
     # Access the data part of the request
     print(data)  # Example: {'key1': 'value1', 'key2': 'value2'}

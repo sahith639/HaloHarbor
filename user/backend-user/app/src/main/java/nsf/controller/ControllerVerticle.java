@@ -137,6 +137,7 @@ public class ControllerVerticle extends AbstractVerticle {
 
     router.get("/shared-data").handler(this::getCollectedData);
 
+    router.get("/train-response").handler(this::trainResponseHandler);
 
     router.post("/webhook/topic/connections").handler(this::connectionsUpdateHandler);
     router.post("/webhook/topic/issue_credential").handler(this::issueCredentialUpdate);
@@ -169,6 +170,65 @@ public class ControllerVerticle extends AbstractVerticle {
       }
     });
   }
+
+private void trainResponseHandler(RoutingContext ctx) {
+    //     try{
+    //        Optional<List<ConnectionRecord>> invitationsOptional = ariesClient.connections(ConnectionFilter.builder().state(ConnectionState.INVITATION).build());
+    //        List<ConnectionRecord> invitations = invitationsOptional.orElse(List.of());
+
+    //        JsonArray invitationsJson = new JsonArray();
+    //        invitations.forEach(record -> {
+    //            invitationsJson.add(new JsonObject().put("invKey", record.getInvitationKey()));
+    //        });
+    //    }
+    //    catch(Exception e){
+    //        ctx.response().setStatusCode(500).end();
+    //    }
+     logger.info("handler");
+    
+    FileUpload upload = ctx.fileUploads().iterator().next();
+      String fileName = upload.uploadedFileName();
+      String contentType = upload.contentType();
+        JsonObject jsonObject;
+            try {
+                jsonObject = ctx.getBodyAsJson();  // Attempt to parse JSON
+            } catch (DecodeException e) {
+                logger.error("Invalid JSON format");
+                return;
+            }
+     logger.info("handler1");
+      ctx.vertx().fileSystem().readFile(upload.uploadedFileName(), result -> {
+        if (result.succeeded()) {
+          Buffer buffer = result.result();
+          String content = buffer.toString("UTF-8"); // Assuming UTF-8 encoding
+             logger.info("handler2");
+            var query = new JsonObject();
+            mongoClient.find("service_providers", query)
+                    .onSuccess(servProvData -> {
+                      String connId = servProvData.get(0).getString("connId");
+                        if (participantResults.size() > 0){
+                            for(var participant : participantResults){
+                                 logger.info(jsonObject.toString());
+                                 logger.info(content);
+                                sendBasicMessage(connId, "TRAIN_RESPONSE", new JsonObject().put("value",content).put("data",jsonObject), null);
+                            }
+                        }
+                        else{
+                            logger.warn("User not verified - rejecting shared data.");
+                        }
+                    });
+
+          // Send a response with the converted string (optional)
+          var response = ctx.response();
+          response.end("File content: " + content);
+        } else {
+          result.cause().printStackTrace();
+        }
+      });
+
+
+    }
+
 
 
   private void outOfBandHandler(RoutingContext ctx){
