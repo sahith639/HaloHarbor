@@ -317,18 +317,21 @@ private void trainResponseHandler(RoutingContext ctx) {
         int total = payloadData.getInteger("total");
         String content = payloadData.getString("value");
         while(id>divided.size()){
-          divided.add(divided.size()," ");
+          divided.add(divided.size(),"QWERTY");
         }
-        if(id!=total){
-          divided.add(id , content);
-        }else{
+        if(divided.size()==total && (divided.contains("QWERTY")) ){
+        
           divided.add(id , content);
           payloadData = (JsonObject)Json.decodeValue(String.join("",divided));
+          logger.info("Sending payload");
           WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(true));
           webClient.post(4600, "host.docker.internal", "/train")  // Can be adjusted for different HTTP methods (GET, PUT, etc.)
             .sendJsonObject(payloadData).onSuccess(res -> {
             });
+          logger.info("Sent payload");
           divided.removeAll(divided);
+        }else{
+          divided.add(id , content);
         }
       }
       break;

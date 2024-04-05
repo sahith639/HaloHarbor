@@ -72,7 +72,7 @@ services:
       --admin-insecure-mode
       --admin 0.0.0.0 9031
       --genesis-url 'http://test.bcovrin.vonx.io/genesis'
-      --log-level 'debug'
+      --log-level 'info'
       --auto-accept-invites --auto-accept-requests --auto-ping-connection --auto-respond-credential-proposal --auto-respond-credential-offer --auto-respond-credential-request --auto-verify-presentation --auto-store-credential
       --auto-provision
       --wallet-type askar
