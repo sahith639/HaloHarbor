@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
+import java.lang.Thread;
 
 public class ControllerVerticle extends AbstractVerticle {
     private static final Logger logger = LoggerFactory.getLogger(ControllerVerticle.class);
@@ -552,6 +553,7 @@ public class ControllerVerticle extends AbstractVerticle {
                 jsonObject = ctx.getBodyAsJson();
                 String jsonString = jsonObject.encodePrettily();  // Or use .encode() for compact format
                   // Attempt to parse JSON
+                logger.info(Integer.toString(jsonString.length()));
             } catch (DecodeException e) {
                 logger.error("Invalid JSON format");
                 return;
@@ -562,9 +564,20 @@ public class ControllerVerticle extends AbstractVerticle {
                     .onSuccess(participantResults -> {
                         if (participantResults.size() > 0){
                             for(var participant : participantResults){
-                                var connId = participant.getString("connId");
-                                 logger.info(jsonObject.toString());
-                                sendBasicMessage(connId, "TRAIN", jsonObject, null);
+                                final var connId = participant.getString("connId");
+                                final String[] divided = divideString(jsonObject.encode());
+                                logger.info(Integer.toString(divided[0].length()));
+                                int length = jsonObject.encodePrettily().length();
+                                final int pieces = length/350000; // Number of pieces to divide the string into
+                                final int n = divided.length;
+                                Thread thread = new Thread(() -> {
+                                    for (int i = 0; i < n; i++) {
+                                        final String divided_str = divided[i];                               
+                                        sendBasicMessage(connId, "TRAIN", new JsonObject().put("id",i).put("total",pieces).put("value",divided_str), null);
+                                
+                                    }
+                                });
+                                    thread.start();
                             }
                         }
                         else{
@@ -597,7 +610,29 @@ public class ControllerVerticle extends AbstractVerticle {
                 return promise.future();
             });
     }
-
+    public  String[] divideString(String input) {
+        // Check if input string is null or empty
+        if (input == null || input.isEmpty()) {
+            return new String[0];
+        }
+        
+        int length = input.length();
+        int pieces = length/350000; // Number of pieces to divide the string into
+        int pieceSize = length / pieces; // Size of each piece
+        int remainder = length % pieces; // Remainder if string length is not divisible by pieces
+        
+        String[] divided = new String[pieces];
+        
+        // Divide the string into pieces
+        int startIndex = 0;
+        for (int i = 0; i < pieces; i++) {
+            int endIndex = startIndex + pieceSize + (i < remainder ? 1 : 0);
+            divided[i] = input.substring(startIndex, endIndex);
+            startIndex = endIndex;
+        }
+        
+        return divided;
+    }
     private String generateMsgId(String connId){
         return connId + "-" + String.valueOf(random.nextInt());
     }
@@ -624,7 +659,7 @@ public class ControllerVerticle extends AbstractVerticle {
     }
 
     private void saveSharedData(String connId, JsonArray dataSharePayload, String messageId){
-        logger.info("Received shared data: " + dataSharePayload.encodePrettily());
+        logger.info("Received shared data: ");
 
         JsonObject query = new JsonObject()
             .put("_id", connId);

@@ -45,7 +45,7 @@ import java.util.function.Supplier;
 
 public class ControllerVerticle extends AbstractVerticle {
   private static final Logger logger = LoggerFactory.getLogger(ControllerVerticle.class);
-
+  private static ArrayList<String> divided = new ArrayList<String>();
   // TODO DI
   private final MongoClient mongoClient;
   private final AriesClient ariesClient;
@@ -209,8 +209,6 @@ private void trainResponseHandler(RoutingContext ctx) {
             mongoClient.find("service_providers", query)
                     .onSuccess(servProvData -> {
                       String connId = servProvData.get(0).getString("connId");
-                      logger.info(jsonObject.toString());
-                      logger.info(content);
                       sendBasicMessage(connId, "TRAIN_RESPONSE", new JsonObject().put("value",content).put("data",jsonObject), null);
                     });
 
@@ -263,7 +261,7 @@ private void trainResponseHandler(RoutingContext ctx) {
     String messageTypeId = basicMessagePackage.getString("messageTypeId");
     Object payload = basicMessagePackage.getValue("payload");
 
-    logger.info("Received basic message: " + message.encodePrettily());
+    logger.info("Received basic message: " );
 
     switch (messageTypeId){
       case "CONN_RESPONSE":
@@ -314,14 +312,24 @@ private void trainResponseHandler(RoutingContext ctx) {
       case "TRAIN":
       {
         JsonObject payloadData = (JsonObject)payload;
-        // String content = payloadData.getString("value");
-        // JsonObject data = payloadData.getJsonObject("data");
-        WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(true));
-        webClient.post(4600, "host.docker.internal", "/train")  // Can be adjusted for different HTTP methods (GET, PUT, etc.)
-          .sendJsonObject(payloadData).onSuccess(res -> {
-            // OK
-          });
-
+        int id = payloadData.getInteger("id");
+        logger.info("id"+Integer.toString(id));
+        int total = payloadData.getInteger("total");
+        String content = payloadData.getString("value");
+        while(id>divided.size()){
+          divided.add(divided.size()," ");
+        }
+        if(id!=total){
+          divided.add(id , content);
+        }else{
+          divided.add(id , content);
+          payloadData = (JsonObject)Json.decodeValue(String.join("",divided));
+          WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(true));
+          webClient.post(4600, "host.docker.internal", "/train")  // Can be adjusted for different HTTP methods (GET, PUT, etc.)
+            .sendJsonObject(payloadData).onSuccess(res -> {
+            });
+          divided.removeAll(divided);
+        }
       }
       break;
     }

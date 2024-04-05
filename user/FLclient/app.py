@@ -82,7 +82,6 @@ def run():
     
     payload = request.form.to_dict()
     print('sad', payload['epochs'])
-    print(payload)  
     data = payload['data']
     string_data = payload['value']
     with io.open('global_update.pkl', "wb") as file:
