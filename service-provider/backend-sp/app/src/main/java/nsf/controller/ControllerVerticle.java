@@ -71,9 +71,9 @@ public class ControllerVerticle extends AbstractVerticle {
 //            .allowedHeader("Content-Type"));
         //BodyHandler bodyHandler = BodyHandler.create().setBodyLimit(-1);
 
-        BodyHandler bodyHandler = BodyHandler.create().setBodyLimit(300L * 1024 * 1024); // for 300MB
+        // BodyHandler bodyHandler = BodyHandler.create().setBodyLimit(300L * 1024 * 1024); // for 300MB
 
-        router.route().handler(bodyHandler);
+        router.route().handler(BodyHandler.create());
 
         router.route().handler(ctx -> {
             ctx.response()
@@ -111,8 +111,8 @@ public class ControllerVerticle extends AbstractVerticle {
         router.post("/webhook/topic/present_proof").handler(this::presentProofUpdate);
 
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9081"));
-
-        vertx.createHttpServer()
+        HttpServerOptions options = new HttpServerOptions().setMaxFormAttributeSize(-1);
+        vertx.createHttpServer(options)
                 .requestHandler(router)
                 .listen(port)
                 .onSuccess(server -> {
@@ -551,7 +551,6 @@ public class ControllerVerticle extends AbstractVerticle {
             try {
                 jsonObject = ctx.getBodyAsJson();
                 String jsonString = jsonObject.encodePrettily();  // Or use .encode() for compact format
-                logger.info("Processing data: " + jsonString);
                   // Attempt to parse JSON
             } catch (DecodeException e) {
                 logger.error("Invalid JSON format");

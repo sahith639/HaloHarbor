@@ -85,20 +85,22 @@ def federated_training(global_model, num_rounds):
     print(f"-- Round {round_num + 1} --")
     while not all(i == 0 for i in updated):
       time.sleep(2)
-
+    with open('./global_update.pkl', 'rb') as file:
+      loaded_data = pickle.load(file)
+        
     for i in range(3):
         # Trigger client training
         url = 'http://host.docker.internal:9081/train'
-        with open('./global_update.pkl', 'rb') as file:
-                loaded_data = pickle.load(file)
-                print(get_size_in_mb(str(pickle.dumps(loaded_data))))
-                response = requests.post(url, data={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':i,'epochs':3}})  
-                if response.status_code == 200:
-                    print("File successfully sent to API.")
-                else:
-                    print("Error occurred while sending file to API. Status code:", response.status_code)
-    
-  return "All training Done"
+        print(get_size_in_mb(str(pickle.dumps(loaded_data))))
+        headers = {'Content-Type': ': application/json'}
+        response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':i,'epochs':3}})  
+        if response.status_code == 200:
+            print("File successfully sent to API.")
+        else:
+            print("Error occurred while sending file to API. Status code:", response.status_code)
+            return {'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':i,'epochs':3}}
+  
+  return "All Training Done"
 
 
 
