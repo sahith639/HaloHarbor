@@ -48,7 +48,7 @@ services:
       - controller_mongodb_data:/data/db
   
   acapy_agent:
-    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.9-0.12.0rc2
+    image: ghcr.io/hyperledger/aries-cloudagent-python:py3.9-indy-1.16.0-0.10.4
     container_name: user-acapy-agent
     ports:
       - 9031:9031
