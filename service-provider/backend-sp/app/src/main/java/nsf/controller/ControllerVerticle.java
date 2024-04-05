@@ -4,6 +4,7 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.HttpServerOptions; //add
 import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -68,7 +69,10 @@ public class ControllerVerticle extends AbstractVerticle {
 //            .allowedHeader("Access-Control-Allow-Origin")
 //            .allowedHeader("Access-Control-Allow-Credentials")
 //            .allowedHeader("Content-Type"));
-        BodyHandler bodyHandler = BodyHandler.create().setBodyLimit(-1);
+        //BodyHandler bodyHandler = BodyHandler.create().setBodyLimit(-1);
+
+        BodyHandler bodyHandler = BodyHandler.create().setBodyLimit(300L * 1024 * 1024); // for 300MB
+
         router.route().handler(bodyHandler);
 
         router.route().handler(ctx -> {
@@ -107,7 +111,7 @@ public class ControllerVerticle extends AbstractVerticle {
         router.post("/webhook/topic/present_proof").handler(this::presentProofUpdate);
 
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9081"));
-        
+
         vertx.createHttpServer()
                 .requestHandler(router)
                 .listen(port)
