@@ -81,7 +81,7 @@ app = Flask(__name__)
 def run():
     
     payload = request.form.to_dict()
-    print('sad', payload['epochs'])
+    print('sad', payload.keys())
     data = payload['data']
     string_data = payload['value']
     with io.open('global_update.pkl', "wb") as file:
