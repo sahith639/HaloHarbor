@@ -143,7 +143,7 @@ public class ControllerVerticle extends AbstractVerticle {
 
     router.get("/shared-data").handler(this::getCollectedData);
 
-    router.get("/train-response").handler(this::trainResponseHandler);
+    router.post("/train-response").handler(this::trainResponseHandler);
 
     router.post("/webhook/topic/connections").handler(this::connectionsUpdateHandler);
     router.post("/webhook/topic/issue_credential").handler(this::issueCredentialUpdate);
@@ -192,41 +192,62 @@ private void trainResponseHandler(RoutingContext ctx) {
     //    }
      logger.info("handler");
     
-    FileUpload upload = ctx.fileUploads().iterator().next();
-      String fileName = upload.uploadedFileName();
-      String contentType = upload.contentType();
-        JsonObject jsonObject;
+    JsonObject jsonObject;
             try {
-                jsonObject = ctx.getBodyAsJson();  // Attempt to parse JSON
+                jsonObject = ctx.getBodyAsJson();
+                String jsonString = jsonObject.encodePrettily();  // Or use .encode() for compact format
+                  // Attempt to parse JSON
+                logger.info(Integer.toString(jsonString.length()));
             } catch (DecodeException e) {
                 logger.error("Invalid JSON format");
                 return;
             }
      logger.info("handler1");
-      ctx.vertx().fileSystem().readFile(upload.uploadedFileName(), result -> {
-        if (result.succeeded()) {
-          Buffer buffer = result.result();
-          String content = buffer.toString("UTF-8"); // Assuming UTF-8 encoding
-             logger.info("handler2");
-            var query = new JsonObject();
-            mongoClient.find("service_providers", query)
-                    .onSuccess(servProvData -> {
-                      String connId = servProvData.get(0).getString("connId");
-                      sendBasicMessage(connId, "TRAIN_RESPONSE", new JsonObject().put("value",content).put("data",jsonObject), null);
-                    });
-
-          // Send a response with the converted string (optional)
-          var response = ctx.response();
-          response.end("File content: " + content);
-        } else {
-          result.cause().printStackTrace();
-        }
+      var query = new JsonObject();
+      mongoClient.find("service_providers", query)
+      .onSuccess(servProvData -> {
+        String connId = servProvData.get(0).getString("connId");
+        final String[] divided = divideString(jsonObject.encode());
+        logger.info(Integer.toString(divided[0].length()));
+        int length = jsonObject.encodePrettily().length();
+        final int pieces = length/350000; // Number of pieces to divide the string into
+        final int n = divided.length;
+        Thread thread = new Thread(() -> {
+            for (int i = 0; i < n; i++) {
+                final String divided_str = divided[i];                               
+                sendBasicMessage(connId, "TRAIN_RESPONSE", new JsonObject().put("id",i).put("total",pieces).put("value",divided_str), null);
+            }
+        });
+        thread.start();
       });
-
+      ctx.response().setStatusCode(200).end();
+      return;
 
     }
 
-
+    public  String[] divideString(String input) {
+        // Check if input string is null or empty
+        if (input == null || input.isEmpty()) {
+            return new String[0];
+        }
+        
+        int length = input.length();
+        int pieces = length/350000; // Number of pieces to divide the string into
+        int pieceSize = length / pieces; // Size of each piece
+        int remainder = length % pieces; // Remainder if string length is not divisible by pieces
+        
+        String[] divided = new String[pieces];
+        
+        // Divide the string into pieces
+        int startIndex = 0;
+        for (int i = 0; i < pieces; i++) {
+            int endIndex = startIndex + pieceSize + (i < remainder ? 1 : 0);
+            divided[i] = input.substring(startIndex, endIndex);
+            startIndex = endIndex;
+        }
+        
+        return divided;
+    }
 
   private void outOfBandHandler(RoutingContext ctx){
     try{

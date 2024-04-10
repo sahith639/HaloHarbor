@@ -20,6 +20,7 @@ import requests
 import os
 import time
 import io
+import json
 
 updated = [0,0,0]
 def create_model():
@@ -93,7 +94,10 @@ def federated_training(global_model, num_rounds):
         url = 'http://host.docker.internal:9081/train'
         print(get_size_in_mb(str(pickle.dumps(loaded_data))))
         headers = {'Content-Type': ': application/json'}
-        response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':i,'epochs':3}})  
+        response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':i,'epochs':3}}) 
+        fileModel = open('sent.txt','w')
+        fileModel.write(str(pickle.dumps(loaded_data),'latin1'))
+        fileModel.close() 
         if response.status_code == 200:
             print("File successfully sent to API.")
         else:
@@ -112,18 +116,20 @@ def run():
     global_model = create_global_model()
     additional_info = {"learning_rate": 0.01}
     save_global_updates(global_model, additional_info)
-    final_model = federated_training(global_model, num_rounds=2)
+    final_model = federated_training(global_model, num_rounds=1)
     return final_model
 
 
 @app.route("/response", methods=['POST'])
 def resopnse():
     global updated
-    payload = request.form.to_dict()
-    print('sad', payload['epochs'])
-    print(payload)  
+    payload = request.get_json()
+    payload = json.loads(payload["completeData"])
+    print('sad', payload.keys())
+
     data = payload['data']
     string_data = payload['value']
+    
     with io.open(f"client_{data["client_id"]}_update.pkl", "wb") as file:
       # Write the string data as bytes to the file
       file.write(string_data.encode("UTF-8"))

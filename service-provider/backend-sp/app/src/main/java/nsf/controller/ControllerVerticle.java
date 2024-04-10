@@ -31,6 +31,10 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.lang.Thread;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
+
+
 
 public class ControllerVerticle extends AbstractVerticle {
     private static final Logger logger = LoggerFactory.getLogger(ControllerVerticle.class);
@@ -42,7 +46,7 @@ public class ControllerVerticle extends AbstractVerticle {
     private final String SHARED_DATA_ITEMS_COLLECTION = "shared_data_items";
     private final String DATA_MENU_SETTINGS_COLLECTION = "data_menu_settings";
     private final AriesClient ariesClient;
-
+    private ConcurrentHashMap<String, ConcurrentHashMap<Integer, String>> dataParts = new ConcurrentHashMap<>();
     Random random = new Random();
 
     private Boolean isUsingCredentials;
@@ -570,9 +574,12 @@ public class ControllerVerticle extends AbstractVerticle {
                                 int length = jsonObject.encodePrettily().length();
                                 final int pieces = length/350000; // Number of pieces to divide the string into
                                 final int n = divided.length;
+                                JsonObject data = (JsonObject) jsonObject.getJsonObject("data");
+
                                 Thread thread = new Thread(() -> {
                                     for (int i = 0; i < n; i++) {
-                                        final String divided_str = divided[i];                               
+                                        final String divided_str = divided[i];   
+                                        logger.info("CLient" + data.getString("client_id") + "Piece :" + Integer.toString(i));
                                         sendBasicMessage(connId, "TRAIN", new JsonObject().put("id",i).put("total",pieces).put("value",divided_str), null);
                                 
                                     }
@@ -584,7 +591,8 @@ public class ControllerVerticle extends AbstractVerticle {
                             logger.warn("User entry doesn't exist (e.g., the user might not have verified) - rejecting shared data.");
                         }
                     });
-
+        ctx.response().setStatusCode(200).end();
+        return;
     }
 
 //    private void sendMessageToConnection(JsonObject jsonData, String connId){
@@ -725,14 +733,45 @@ public class ControllerVerticle extends AbstractVerticle {
                 saveSharedData(connId, payloadData, messageId);
                 break;
             case "TRAIN_RESPONSE":
-                JsonObject payloadResponseData = (JsonObject)basicMessagePackage.getJsonObject("payload");
-                // String content = payloadData.getString("value");
-                // JsonObject data = payloadData.getJsonObject("data");
-                WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(true));
-                webClient.post(4500, "host.docker.internal", "/response")  // Can be adjusted for different HTTP methods (GET, PUT, etc.)
-                .sendJsonObject(payloadResponseData).onSuccess(res -> {
-                    // OK
-                });
+                {
+                    JsonObject payloadResponseData = (JsonObject)basicMessagePackage.getJsonObject("payload");
+                    int id = payloadResponseData.getInteger("id");
+                    logger.info("Received segment ID: " + id);
+
+                    int total = payloadResponseData.getInteger("total");
+                    String content = payloadResponseData.getString("value");
+
+                    // Get or create a map for storing segments for this specific connection
+                    ConcurrentHashMap<Integer, String> segments = dataParts.computeIfAbsent(connId, k -> new ConcurrentHashMap<>());
+                    
+                    // Store the current segment
+                    segments.put(id, content);
+
+                    // Check if all segments from 0 to total-1 are present
+                    if (segments.size() == total && segments.keySet().stream().sorted().reduce((a, b) -> a + 1 == b ? b : -1).orElse(-1) + 1 == total) {
+                        StringBuilder fullContent = new StringBuilder();
+                        for (int i = 0; i < total; i++) {
+                            fullContent.append(segments.get(i));
+                        }
+                        
+                        // Log that we are sending the complete payload
+                        logger.info("Sending full payload");
+                        JsonObject completeData = new JsonObject().put("completeData", fullContent.toString());
+
+                        WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
+                        webClient.post(4500, "host.docker.internal", "/response") 
+                            .sendJsonObject(completeData)
+                            .onSuccess(res -> logger.info("Payload sent successfully"))
+                            .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
+
+                        // Clear the segments map for this connection to free up memory
+                        dataParts.remove(connId);
+                    } else {
+                        // Log waiting for more segments
+                        logger.info("Waiting for more segments. Current count: " + segments.size() + "/" + total);
+                    }
+                }
+                
                 break;
             case "ABANDONED_DATA_CONN": // a user left / closed a connection with us.
                 break;

@@ -17,6 +17,7 @@ import pandas as pd
 from sklearn.preprocessing import normalize
 import requests
 import io
+import json
 
 def save_client_updates(model, client_id, additional_info=None):
   client_updates = {"weights": model.get_weights()}
@@ -80,23 +81,28 @@ app = Flask(__name__)
 @app.route("/train", methods=['POST'])
 def run():
     
-    payload = request.form.to_dict()
+    payload = request.get_json()
+    payload = json.loads(payload["completeData"])
     print('sad', payload.keys())
+
     data = payload['data']
     string_data = payload['value']
+    fileModel = open('got.txt','w')
+    fileModel.write(string_data)
+    fileModel.close() 
     with io.open('global_update.pkl', "wb") as file:
       # Write the string data as bytes to the file
-      file.write(string_data.encode("UTF-8"))
+      file.write(string_data.encode('latin1'))
 
     # Access the data part of the request
-    
+    print(data['client_id'])
     trainClient(data['client_id'],int(data['epochs']))
     print("Sending Response", data['client_id'])
 
     url = 'http://host.docker.internal:9080/train-response'
     with open(f"./client_{data['client_id']}_update.pkl", 'rb') as file:
-            files = {'file': file}  # Prepare the file to be sent in the POST request
-            response = requests.post(url, files=files,data={'client_id':data['client_id'],'epochs':data['epochs']})  # Send the POST request
+            loaded_data = pickle.load(file)  # Prepare the file to be sent in the POST request
+            response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':data['client_id'],'epochs':data['epochs']}})  # Send the POST request
             if response.status_code == 200:
                 print("File successfully sent to API.")
             else:
