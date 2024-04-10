@@ -365,14 +365,15 @@ private void trainResponseHandler(RoutingContext ctx) {
       {
           JsonObject payloadData = (JsonObject)payload;
           int id = payloadData.getInteger("id");
-          logger.info("Received segment ID: " + id);
+          String client_id = payloadData.getString("client_id");
+          logger.info("Client: "+ client_id +" Received segment ID: " + id);
 
           int total = payloadData.getInteger("total");
           String content = payloadData.getString("value");
 
           // Get or create a map for storing segments for this specific connection
           ConcurrentHashMap<Integer, String> segments = dataParts.computeIfAbsent(connId, k -> new ConcurrentHashMap<>());
-          
+        
           // Store the current segment
           segments.put(id, content);
 
