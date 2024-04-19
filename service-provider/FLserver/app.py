@@ -88,21 +88,18 @@ def federated_training(global_model, num_rounds):
       time.sleep(2)
     with open('./global_update.pkl', 'rb') as file:
       loaded_data = pickle.load(file)
-        
-    for i in range(3):
-        # Trigger client training
-        url = 'http://host.docker.internal:9081/train'
-        print(get_size_in_mb(str(pickle.dumps(loaded_data))))
-        headers = {'Content-Type': ': application/json'}
-        response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':i,'epochs':3}}) 
-        fileModel = open('sent.txt','w')
-        fileModel.write(str(pickle.dumps(loaded_data),'latin1'))
-        fileModel.close() 
-        if response.status_code == 200:
-            print("File successfully sent to API.")
-        else:
-            print("Error occurred while sending file to API. Status code:", response.status_code)
-            return {'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':i,'epochs':3}}
+      url = 'http://host.docker.internal:9081/train'
+      print(get_size_in_mb(str(pickle.dumps(loaded_data))))
+      headers = {'Content-Type': ': application/json'}
+      response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':0,'epochs':3}}) 
+      fileModel = open('sent.txt','w')
+      fileModel.write(str(pickle.dumps(loaded_data),'latin1'))
+      fileModel.close() 
+      if response.status_code == 200:
+          print("File successfully sent to API.")
+      else:
+          print("Error occurred while sending file to API. Status code:", response.status_code)
+          return {'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':i,'epochs':3}}
   
   return "All Training Done"
 
@@ -132,7 +129,7 @@ def resopnse():
     
     with io.open(f"client_{data["client_id"]}_update.pkl", "wb") as file:
       # Write the string data as bytes to the file
-      file.write(string_data.encode("UTF-8"))
+      file.write(string_data.encode("latin1"))
 
     print(data["client_id"],'responded')
     
@@ -150,7 +147,19 @@ def resopnse():
       global_model.set_weights(aggregated_weights)
       additional_info = {"learning_rate": 0.01}
       save_global_updates(global_model, additional_info)
+      print('All Done!')
       updated = [0,0,0]
+    else:
+      with open('./global_update.pkl', 'rb') as file:
+        loaded_data = pickle.load(file)
+        url = 'http://host.docker.internal:9081/train'
+        print(get_size_in_mb(str(pickle.dumps(loaded_data))))
+        headers = {'Content-Type': ': application/json'}
+        response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':int(data["client_id"])+1,'epochs':3}}) 
+        if response.status_code == 200:
+            print("File successfully sent to API.")
+        else:
+            print("Error occurred while sending file to API. Status code:", response.status_code)
     return 'File and data received'+ '200'
    
 if __name__ == "__main__":
