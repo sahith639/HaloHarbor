@@ -10,6 +10,7 @@ import Profile from './scenes/profile';
 import ParticipantsPage from './scenes/participants';
 import SettingsPage from './scenes/settings';
 import HelpPage from './scenes/help';
+import TrainingPage from './scenes/training';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
           <Route path="/profile" element={<PageFrame element={<Profile/>}/>} />
           <Route path="/participants" element={<PageFrame element={<ParticipantsPage/>}/>} />
           <Route path="/settings" element={<PageFrame element={<SettingsPage/>}/>} />
+          <Route path="/training" element={<PageFrame element={<TrainingPage/>}/>} />
           <Route path="/about" element={<PageFrame element={<HelpPage/>}/>} />
           {/* <Route path="/connections" element={<ConnectionsPage/>} /> */}
 

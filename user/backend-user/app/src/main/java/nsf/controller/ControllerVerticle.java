@@ -52,7 +52,7 @@ public class ControllerVerticle extends AbstractVerticle {
   private final BaseAccessControlService accessControlService;
   private final BaseServProvService servProvService;
   private final BaseDataService dataService;
-
+  private static JsonObject userSettings;
   private ConcurrentHashMap<String, ConcurrentHashMap<Integer, String>> dataParts = new ConcurrentHashMap<>();
 
 
@@ -144,13 +144,14 @@ public class ControllerVerticle extends AbstractVerticle {
     router.get("/shared-data").handler(this::getCollectedData);
 
     router.post("/train-response").handler(this::trainResponseHandler);
+    router.post("/user-settings").handler(this::userSettingsHandler);
 
     router.post("/webhook/topic/connections").handler(this::connectionsUpdateHandler);
     router.post("/webhook/topic/issue_credential").handler(this::issueCredentialUpdate);
     router.post("/webhook/topic/present_proof").handler(this::presentProofUpdate);
     router.post("/webhook/topic/out_of_band").handler(this::outOfBandHandler);
     router.post("/webhook/topic/basicmessages").handler(this::basicMessageHandler);
-
+    userSettings = new JsonObject().put("0",true).put("1",true).put("2",true);
     int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9080"));
     vertx.createHttpServer()
         .requestHandler(router)
@@ -176,6 +177,29 @@ public class ControllerVerticle extends AbstractVerticle {
       }
     });
   }
+
+
+private void userSettingsHandler(RoutingContext ctx) {
+    
+    
+    JsonObject jsonObject;
+            try {
+                jsonObject = ctx.getBodyAsJson();
+                for (String key : jsonObject.fieldNames()) {
+                    if (userSettings.containsKey(key)) {
+                        userSettings.put(key, jsonObject.getValue(key));
+                    }
+                }
+                logger.info("user setting updated " + jsonObject.encode());
+            } catch (DecodeException e) {
+                logger.error("Invalid JSON format");
+                return;
+            }
+     
+      ctx.response().setStatusCode(200).end();
+      return;
+
+    }
 
 private void trainResponseHandler(RoutingContext ctx) {
     //     try{
@@ -210,7 +234,7 @@ private void trainResponseHandler(RoutingContext ctx) {
         final String[] divided = divideString(jsonObject.encode());
         logger.info(Integer.toString(divided[0].length()));
         int length = jsonObject.encodePrettily().length();
-        final int pieces = length/350000; // Number of pieces to divide the string into
+        final int pieces = Math.max(length/350000,1); // Number of pieces to divide the string into
         final int n = divided.length;
         Thread thread = new Thread(() -> {
             for (int i = 0; i < n; i++) {
@@ -232,7 +256,7 @@ private void trainResponseHandler(RoutingContext ctx) {
         }
         
         int length = input.length();
-        int pieces = length/350000; // Number of pieces to divide the string into
+        int pieces = Math.max(length/350000,1); // Number of pieces to divide the string into
         int pieceSize = length / pieces; // Size of each piece
         int remainder = length % pieces; // Remainder if string length is not divisible by pieces
         
@@ -362,7 +386,7 @@ private void trainResponseHandler(RoutingContext ctx) {
     }*/
 
       case "TRAIN":
-      {
+      {   
           JsonObject payloadData = (JsonObject)payload;
           int id = payloadData.getInteger("id");
           String client_id = payloadData.getString("client_id");
@@ -370,7 +394,6 @@ private void trainResponseHandler(RoutingContext ctx) {
 
           int total = payloadData.getInteger("total");
           String content = payloadData.getString("value");
-
           // Get or create a map for storing segments for this specific connection
           ConcurrentHashMap<Integer, String> segments = dataParts.computeIfAbsent(connId, k -> new ConcurrentHashMap<>());
         
@@ -379,27 +402,42 @@ private void trainResponseHandler(RoutingContext ctx) {
 
           // Check if all segments from 0 to total-1 are present
           if (segments.size() == total && segments.keySet().stream().sorted().reduce((a, b) -> a + 1 == b ? b : -1).orElse(-1) + 1 == total) {
-              StringBuilder fullContent = new StringBuilder();
-              for (int i = 0; i < total; i++) {
-                  fullContent.append(segments.get(i));
-              }
               
-              // Log that we are sending the complete payload
-              logger.info("Sending full payload");
-              JsonObject completeData = new JsonObject().put("completeData", fullContent.toString());
+              logger.info("Client: "+ client_id + userSettings.encode());
+              
+              if(String.valueOf(userSettings.getBoolean(client_id)).equals("true")){
 
-              WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
-              webClient.post(4600, "host.docker.internal", "/train") 
-                  .sendJsonObject(completeData)
-                  .onSuccess(res -> logger.info("Payload sent successfully"))
-                  .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
+                StringBuilder fullContent = new StringBuilder();
+                for (int i = 0; i < total; i++) {
+                    fullContent.append(segments.get(i));
+                }
+                
+                // Log that we are sending the complete payload
+                logger.info("Sending full payload");
+                JsonObject completeData = new JsonObject().put("completeData", fullContent.toString());
 
-              // Clear the segments map for this connection to free up memory
-              dataParts.remove(connId);
-          } else {
-              // Log waiting for more segments
-              logger.info("Waiting for more segments. Current count: " + segments.size() + "/" + total);
-          }
+                WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
+                webClient.post(4600, "host.docker.internal", "/train") 
+                    .sendJsonObject(completeData)
+                    .onSuccess(res -> logger.info("Payload sent successfully"))
+                    .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
+              }else{
+                    logger.info("Rejecting the Training");
+                    JsonObject completeData = new JsonObject().put("value", "None").put("data", new JsonObject().put("client_id", client_id));
+                    WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
+                    webClient.post(9080, "host.docker.internal", "/train-response") 
+                            .sendJsonObject(completeData)
+                            .onSuccess(res -> logger.info("Payload sent successfully"))
+                            .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
+                  }
+                    // Clear the segments map for this connection to free up memory
+                    dataParts.remove(connId);
+            } else {
+                // Log waiting for more segments
+                logger.info("Waiting for more segments. Current count: " + segments.size() + "/" + total);
+            }
+
+        
       }
       break;
     }
