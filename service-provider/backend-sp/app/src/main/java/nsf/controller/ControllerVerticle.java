@@ -33,12 +33,15 @@ import java.util.*;
 import java.lang.Thread;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
-
+import io.vertx.core.buffer.Buffer;
+import io.vertx.core.file.FileSystem;
+import java.util.HashMap;
+import java.util.Map;
 
 
 public class ControllerVerticle extends AbstractVerticle {
     private static final Logger logger = LoggerFactory.getLogger(ControllerVerticle.class);
-
+    public static JsonObject computationLog = new JsonObject();
     // TODO DI
     private final MongoClient mongoClient;
     private final String INVITATIONS_COLLECTION = "invitations";
@@ -109,6 +112,8 @@ public class ControllerVerticle extends AbstractVerticle {
         router.get("/collected-data").handler(this::getCollectedData);
 
         router.post("/train").handler(this::trainHandler);
+        router.get("/compute").handler(this::computeHandler);
+        router.get("/get-logs").handler(this::computeLogHandler);
 
         router.post("/webhook/topic/basicmessages").handler(this::BasicMessageHandler);
         router.post("/webhook/topic/connections").handler(this::connectionsUpdateHandler);
@@ -532,8 +537,33 @@ public class ControllerVerticle extends AbstractVerticle {
     private void pullDataHandler(RoutingContext ctx) {
 
     }
-
-
+    private void computeLogHandler(RoutingContext ctx){
+            
+            ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json")
+            .end(computationLog.encode());
+            return;
+    }
+    private void computeHandler(RoutingContext ctx) {
+            logger.info("handler1");
+                var jsonData = new JsonObject();
+                mongoClient.find(PARTICIPANTS_COLLECTION, new JsonObject())
+                        .onSuccess(participantResults -> {
+                            if (participantResults.size() > 0){
+                                for(var participant : participantResults){
+                                    var connId = participant.getString("connId");
+                                    logger.info("computeHandler in sp backend: " );
+                                    sendBasicMessage(connId, "COMPUTE", new JsonObject(), null);
+                                }
+                                ctx.response().setStatusCode(200).end();
+                                return;
+                            }
+                            else{
+                                ctx.response().setStatusCode(500).end();
+                                logger.info("Compute handler: User entry doesn’t exist (e.g., the user might not have verified) - rejecting shared data.");
+                                return;
+                            }
+                        });
+        }
 
 
     
@@ -773,6 +803,14 @@ public class ControllerVerticle extends AbstractVerticle {
                 }
                 
                 break;
+            case "COMPUTE_RESPONSE":
+                {
+                    JsonObject computeResponseData = (JsonObject)basicMessagePackage.getJsonObject("payload");
+                    logger.info(computeResponseData.toString());
+                    computationLog = computeResponseData.copy();
+                    // return computeResponseData;
+                }
+            break;
             case "ABANDONED_DATA_CONN": // a user left / closed a connection with us.
                 break;
             default:

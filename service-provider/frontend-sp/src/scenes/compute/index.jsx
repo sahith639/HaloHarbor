@@ -6,7 +6,7 @@ import { Button, IconButton, Typography, useTheme } from "@mui/material";
 // import cachePull from '../../utils/cachePull'
 
 
-const TrainingPage = () => {
+const ComputationPage = () => {
     const theme = useTheme();
     const [log, setLog] = useState("");
     const colors = theme.palette;
@@ -14,7 +14,7 @@ const TrainingPage = () => {
     const navigate = useNavigate()
     const handleTrainingButtonClick = () => {
       console.log('Training button clicked');
-      var url = 'http://host.docker.internal:4500/'
+      var url = 'http://host.docker.internal:9081/compute'
       fetch(url, {
         method: 'GET',
         mode: 'cors',
@@ -37,7 +37,7 @@ const TrainingPage = () => {
     };
   
     const handleRefreshStatusButtonClick = async () => {
-      var url = 'http://host.docker.internal:4500/get-logs'
+      var url = 'http://host.docker.internal:9081/get-logs'
       let data = await fetch(url, {
         method: 'GET',
         mode: 'cors',
@@ -47,19 +47,21 @@ const TrainingPage = () => {
       }).then(response => {
         return response.json(); // This returns a Promise
       })
-      console.log(data)
-      setLog(data['value'])
+      const jsonString = JSON.stringify(data, null, 4); // Use 4 spaces for indentation
+      const multiLineString = jsonString.replace(/(?:\\[rn]|[\r\n]+)+/g, '\n');
+      console.log(multiLineString)
+      setLog(multiLineString)
     };
     return (
       <Box sx = {{color: "F8F8F8"}}>
         <Typography variant="h3" sx={{ color: "#000000"}}>
-          Model Training: 
+          Computation: 
         </Typography>
         <Typography variant="h5" sx={{ padding: "20px 30px 0 5px", color: "#000000"}}>
         <div>
-          <button onClick={handleTrainingButtonClick}>Training</button>
+          <button onClick={handleTrainingButtonClick}>Compute</button>
           <button onClick={handleRefreshStatusButtonClick}>Refresh Status</button>
-          <p>Traning Logs: </p>
+          <p>Computation Logs: </p>
           <div>
               {log.split("\n").map((i,key) => {
                   return <div key={key}>{i}</div>;
@@ -71,7 +73,7 @@ const TrainingPage = () => {
     );
 }
 
-export default TrainingPage
+export default ComputationPage
 
             {/* <Box height="250px">
               <div style={{ paddingLeft:"50px", paddingRight:"10px", height:"300px", width:"300px"}}>

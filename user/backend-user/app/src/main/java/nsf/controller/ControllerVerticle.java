@@ -42,6 +42,10 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
+import io.vertx.core.buffer.Buffer;
+import io.vertx.core.file.FileSystem;
+import java.util.HashMap;
+import java.util.Map;
 
 public class ControllerVerticle extends AbstractVerticle {
   private static final Logger logger = LoggerFactory.getLogger(ControllerVerticle.class);
@@ -289,6 +293,50 @@ private void trainResponseHandler(RoutingContext ctx) {
     }
   }
 
+  private static Map<String, Double> parseCsv(String csvContent) {
+    Map<String, Double> sleepDurationMap = new HashMap<>();
+    String[] lines = csvContent.split("\n");
+
+    for (int i = 1; i < lines.length; i += 1) {
+        String[] row = lines[i].trim().split(",");
+        double value = Double.parseDouble(row[4].trim());
+        sleepDurationMap.put(row[12], value);
+    }
+
+    return sleepDurationMap;
+  }
+
+  private static JsonObject calculateAverageSleepPerDisorder(Map<String, Double> sleepDurationMap) {
+      Map<String, Double> sleepPerDisorder = new HashMap<>();
+      Map<String, Integer> countPerDisorder = new HashMap<>();
+
+      // Calculate total sleep duration and count for each sleep disorder
+      for (Map.Entry<String, Double> entry : sleepDurationMap.entrySet()) {
+          String key = entry.getKey().toLowerCase(); // Assuming sleep disorders are case insensitive
+          double value = entry.getValue();
+
+          sleepPerDisorder.put(key, sleepPerDisorder.getOrDefault(key, 0.0) + value);
+          countPerDisorder.put(key, countPerDisorder.getOrDefault(key, 0) + 1);
+      }
+
+      // Calculate average sleep duration per sleep disorder and construct JsonObject
+      JsonObject result = new JsonObject();
+      for (Map.Entry<String, Double> entry : sleepPerDisorder.entrySet()) {
+          String key = entry.getKey();
+          double totalSleep = entry.getValue();
+          int count = countPerDisorder.get(key);
+          double averageSleep = totalSleep / count;
+
+          // Add sleep disorder and average sleep duration to JsonObject
+          JsonObject disorderEntry = new JsonObject()
+                  .put("sleepDisorder", key)
+                  .put("averageSleepDuration", averageSleep);
+          result.put(key, disorderEntry);
+      }
+
+      return result;
+  }
+
   HashSet<String> uniqueMessagesMap = new HashSet<>();
 
   private void basicMessageHandler(RoutingContext webhookCtx){
@@ -385,61 +433,90 @@ private void trainResponseHandler(RoutingContext ctx) {
       break;
     }*/
 
-      case "TRAIN":
-      {   
-          JsonObject payloadData = (JsonObject)payload;
-          int id = payloadData.getInteger("id");
-          String client_id = payloadData.getString("client_id");
-          logger.info("Client: "+ client_id +" Received segment ID: " + id);
+    case "TRAIN":
+    {   
+        JsonObject payloadData = (JsonObject)payload;
+        int id = payloadData.getInteger("id");
+        String client_id = payloadData.getString("client_id");
+        logger.info("Client: "+ client_id +" Received segment ID: " + id);
 
-          int total = payloadData.getInteger("total");
-          String content = payloadData.getString("value");
-          // Get or create a map for storing segments for this specific connection
-          ConcurrentHashMap<Integer, String> segments = dataParts.computeIfAbsent(connId, k -> new ConcurrentHashMap<>());
-        
-          // Store the current segment
-          segments.put(id, content);
+        int total = payloadData.getInteger("total");
+        String content = payloadData.getString("value");
+        // Get or create a map for storing segments for this specific connection
+        ConcurrentHashMap<Integer, String> segments = dataParts.computeIfAbsent(connId, k -> new ConcurrentHashMap<>());
+      
+        // Store the current segment
+        segments.put(id, content);
 
-          // Check if all segments from 0 to total-1 are present
-          if (segments.size() == total && segments.keySet().stream().sorted().reduce((a, b) -> a + 1 == b ? b : -1).orElse(-1) + 1 == total) {
+        // Check if all segments from 0 to total-1 are present
+        if (segments.size() == total && segments.keySet().stream().sorted().reduce((a, b) -> a + 1 == b ? b : -1).orElse(-1) + 1 == total) {
+            
+            logger.info("Client: "+ client_id + userSettings.encode());
+            
+            if(String.valueOf(userSettings.getBoolean(client_id)).equals("true")){
+
+              StringBuilder fullContent = new StringBuilder();
+              for (int i = 0; i < total; i++) {
+                  fullContent.append(segments.get(i));
+              }
               
-              logger.info("Client: "+ client_id + userSettings.encode());
-              
-              if(String.valueOf(userSettings.getBoolean(client_id)).equals("true")){
+              // Log that we are sending the complete payload
+              logger.info("Sending full payload");
+              JsonObject completeData = new JsonObject().put("completeData", fullContent.toString());
 
-                StringBuilder fullContent = new StringBuilder();
-                for (int i = 0; i < total; i++) {
-                    fullContent.append(segments.get(i));
+              WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
+              webClient.post(4600, "host.docker.internal", "/train") 
+                  .sendJsonObject(completeData)
+                  .onSuccess(res -> logger.info("Payload sent successfully"))
+                  .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
+            }else{
+                  logger.info("Rejecting the Training");
+                  JsonObject completeData = new JsonObject().put("value", "None").put("data", new JsonObject().put("client_id", client_id));
+                  WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
+                  webClient.post(9080, "host.docker.internal", "/train-response") 
+                          .sendJsonObject(completeData)
+                          .onSuccess(res -> logger.info("Payload sent successfully"))
+                          .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
                 }
-                
-                // Log that we are sending the complete payload
-                logger.info("Sending full payload");
-                JsonObject completeData = new JsonObject().put("completeData", fullContent.toString());
-
-                WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
-                webClient.post(4600, "host.docker.internal", "/train") 
-                    .sendJsonObject(completeData)
-                    .onSuccess(res -> logger.info("Payload sent successfully"))
-                    .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
-              }else{
-                    logger.info("Rejecting the Training");
-                    JsonObject completeData = new JsonObject().put("value", "None").put("data", new JsonObject().put("client_id", client_id));
-                    WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
-                    webClient.post(9080, "host.docker.internal", "/train-response") 
-                            .sendJsonObject(completeData)
-                            .onSuccess(res -> logger.info("Payload sent successfully"))
-                            .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
-                  }
-                    // Clear the segments map for this connection to free up memory
-                    dataParts.remove(connId);
-            } else {
-                // Log waiting for more segments
-                logger.info("Waiting for more segments. Current count: " + segments.size() + "/" + total);
-            }
+                  // Clear the segments map for this connection to free up memory
+                  dataParts.remove(connId);
+          } else {
+              // Log waiting for more segments
+              logger.info("Waiting for more segments. Current count: " + segments.size() + "/" + total);
+          }
 
         
       }
       break;
+      case "COMPUTE":
+            {
+              String filePath = "sleep_data.csv"; // Replace with your CSV file path
+              FileSystem fileSystem = vertx.fileSystem();
+              // Read the CSV file
+              logger.info(System.getProperty("user.dir"));
+              
+              fileSystem.readFile(filePath, result -> {
+                  if (result.succeeded()) {
+                      Buffer buffer = result.result();
+                      String csvContent = buffer.toString();
+
+                      // Parse the CSV content into key-value pairs
+                      Map<String, Double> sleepDurationMap = parseCsv(csvContent);
+
+                      // Calculate average sleep duration per sleep disorder
+                      JsonObject averageSleepPerDisorder = calculateAverageSleepPerDisorder(sleepDurationMap);
+                      logger.info("handler2");
+                      sendBasicMessage(connId, "COMPUTE_RESPONSE", averageSleepPerDisorder, null);
+                      // Output the result
+                      logger.info("Average Sleep Duration per Sleep Disorder:");
+
+                  } else {
+                      logger.info("Failed to read the file: " + result.cause());
+                  }
+              });
+              
+            }
+            break;
     }
 
     webhookCtx.response().setStatusCode(200).end();

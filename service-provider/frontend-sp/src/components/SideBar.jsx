@@ -127,6 +127,13 @@ const ThisProSidebar = () => {
               setSelected={setSelected}
           />
           <Item 
+              title={"Computation"}
+              to="/compute"
+              icon ={<LocalFloristOutlinedIcon />}
+              selected={selected}
+              setSelected={setSelected}
+          />
+          <Item 
               title={"Help / About"}
               to="/about"
               // TODO do rounded question mark icon instead, like maybe with a circle around it.

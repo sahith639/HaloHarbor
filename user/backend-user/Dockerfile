@@ -17,6 +17,7 @@ WORKDIR /app
 
 # Copy the shadow JAR from the builder stage to the final image
 COPY --from=builder /app/app/build/libs/app-all.jar ./app.jar
+COPY sleep_data.csv /app/sleep_data.csv
 
 # Start the application
 CMD ["java", "-jar", "app.jar"]

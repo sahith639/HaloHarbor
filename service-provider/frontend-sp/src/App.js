@@ -11,6 +11,7 @@ import ParticipantsPage from './scenes/participants';
 import SettingsPage from './scenes/settings';
 import HelpPage from './scenes/help';
 import TrainingPage from './scenes/training';
+import ComputationPage from './scenes/compute';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
           <Route path="/participants" element={<PageFrame element={<ParticipantsPage/>}/>} />
           <Route path="/settings" element={<PageFrame element={<SettingsPage/>}/>} />
           <Route path="/training" element={<PageFrame element={<TrainingPage/>}/>} />
+          <Route path="/compute" element={<PageFrame element={<ComputationPage/>}/>} />
           <Route path="/about" element={<PageFrame element={<HelpPage/>}/>} />
           {/* <Route path="/connections" element={<ConnectionsPage/>} /> */}
 
