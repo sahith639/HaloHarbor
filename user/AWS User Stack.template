@@ -206,6 +206,35 @@ Resources:
       Port: 9080
       Protocol: HTTP
 
+  FLClientTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: MyECSLoadBalancer
+    Properties:
+      Protocol: HTTP
+      Port: 4600
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckPort: 4600
+      HealthCheckProtocol: 'HTTP'
+      HealthCheckPath: /
+      HealthCheckIntervalSeconds: 100
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 10
+      Matcher:
+        HttpCode: '200,404'
+
+  FLClientListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref FLClientTargetGroup
+      LoadBalancerArn: !Ref MyECSLoadBalancer
+      Port: 4600
+      Protocol: HTTP
+
 
   MyDNSRecord:
     Type: AWS::Route53::RecordSet
@@ -752,4 +781,74 @@ Resources:
           CidrIp: 0.0.0.0/0
   LogGroup:
     Type: 'AWS::Logs::LogGroup'
+
+
+  # FL Client:
+  FLClientDiscoveryService:
+    Type: 'AWS::ServiceDiscovery::Service'
+    Properties:
+      Name: fl-client
+      Description: ''
+      NamespaceId: !Ref DiscoveryNamespace
+      DnsConfig:
+        DnsRecords:
+          - TTL: 60
+            Type: A
+        RoutingPolicy: MULTIVALUE
+  FLClientService:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      ServiceName: FLClient
+      Cluster: !Ref ECSCluster
+      CapacityProviderStrategy:
+        - Base: 0
+          CapacityProvider: !Ref CapacityProvider
+          Weight: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !GetAtt 
+              - ServiceSecurityGroup
+              - GroupId
+          Subnets:
+            - subnet-0f069571b9e806b6e
+            - subnet-06b86ae67399c073b
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 75
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !Ref FLClientTaskDefinition
+      ServiceRegistries:
+        - RegistryArn: !GetAtt 
+            - FLClientDiscoveryService
+            - Arn
+      LoadBalancers:
+        - ContainerName: FLClient
+          ContainerPort: 4600
+          TargetGroupArn: !Ref FLClientTargetGroup
+  FLClientTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      Family: FLClient
+      Cpu: !Ref ContainerCpu
+      Memory: !Ref ContainerMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !Ref ECSTaskExecutionRoleArn
+      ContainerDefinitions:
+        - Name: FLClient
+          Cpu: !Ref ContainerCpu
+          Memory: !Ref ContainerMemory
+          Image: '429105560611.dkr.ecr.us-east-1.amazonaws.com/fl-client'
+          PortMappings:
+            - ContainerPort: '4600'
+              HostPort: '4600'
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: ecs
 

@@ -209,6 +209,36 @@ Resources:
       Port: 8021
       Protocol: HTTP
 
+    
+  FLServerTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: MyECSLoadBalancer
+    Properties:
+      Protocol: HTTP
+      Port: 4500
+      VpcId: !Ref VpcId
+      TargetType: ip
+      HealthCheckEnabled: true
+      HealthCheckPort: 4500
+      HealthCheckProtocol: 'HTTP'
+      HealthCheckPath: /health-check # This is not just "/" because currently a GET request to the root actually executes the training.
+      HealthCheckIntervalSeconds: 100
+      HealthCheckTimeoutSeconds: 10
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 10
+      Matcher:
+        HttpCode: '200,404'
+
+  FLServerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref FLServerTargetGroup
+      LoadBalancerArn: !Ref MyECSLoadBalancer
+      Port: 4500
+      Protocol: HTTP
+
 
   MyDNSRecord:
     Type: AWS::Route53::RecordSet
@@ -685,6 +715,77 @@ Resources:
     Metadata:
       'AWS::CloudFormation::Designer':
         id: 4ca1613b-f583-46f3-9026-7128a35ad298
+
+
+
+  # FL Server:
+  FLServerDiscoveryService:
+    Type: 'AWS::ServiceDiscovery::Service'
+    Properties:
+      Name: fl-server
+      Description: ''
+      NamespaceId: !Ref DiscoveryNamespace
+      DnsConfig:
+        DnsRecords:
+          - TTL: 60
+            Type: A
+        RoutingPolicy: MULTIVALUE
+  FLServerService:
+    Type: 'AWS::ECS::Service'
+    Properties:
+      ServiceName: FLServer
+      Cluster: !Ref ECSCluster
+      CapacityProviderStrategy:
+        - Base: 0
+          CapacityProvider: !Ref CapacityProvider
+          Weight: 1
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: ENABLED
+          SecurityGroups:
+            - !GetAtt 
+              - ServiceSecurityGroup
+              - GroupId
+          Subnets:
+            - subnet-0f069571b9e806b6e
+            - subnet-06b86ae67399c073b
+      DeploymentConfiguration:
+        MaximumPercent: 200
+        MinimumHealthyPercent: 75
+      DesiredCount: !Ref DesiredCount
+      TaskDefinition: !Ref FLServerTaskDefinition
+      ServiceRegistries:
+        - RegistryArn: !GetAtt 
+            - FLServerDiscoveryService
+            - Arn
+      LoadBalancers:
+        - ContainerName: FLServer
+          ContainerPort: 4500
+          TargetGroupArn: !Ref FLServerTargetGroup
+  FLServerTaskDefinition:
+    Type: 'AWS::ECS::TaskDefinition'
+    Properties:
+      Family: FLServer
+      Cpu: !Ref ContainerCpu
+      Memory: !Ref ContainerMemory
+      NetworkMode: awsvpc
+      RequiresCompatibilities:
+        - FARGATE
+      ExecutionRoleArn: !Ref ECSTaskExecutionRoleArn
+      ContainerDefinitions:
+        - Name: FLServer
+          Cpu: !Ref ContainerCpu
+          Memory: !Ref ContainerMemory
+          Image: '429105560611.dkr.ecr.us-east-1.amazonaws.com/fl-server'
+          PortMappings:
+            - ContainerPort: '4500'
+              HostPort: '4500'
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref 'AWS::Region'
+              awslogs-stream-prefix: ecs
 
 
 
