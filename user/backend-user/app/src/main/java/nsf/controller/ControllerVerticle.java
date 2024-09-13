@@ -465,7 +465,7 @@ private void trainResponseHandler(RoutingContext ctx) {
               JsonObject completeData = new JsonObject().put("completeData", fullContent.toString());
 
               WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
-              webClient.post(4600, "host.docker.internal", "/train") 
+              webClient.post(4600, "localhost", "/train") 
                   .sendJsonObject(completeData)
                   .onSuccess(res -> logger.info("Payload sent successfully"))
                   .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
@@ -473,7 +473,7 @@ private void trainResponseHandler(RoutingContext ctx) {
                   logger.info("Rejecting the Training");
                   JsonObject completeData = new JsonObject().put("value", "None").put("data", new JsonObject().put("client_id", client_id));
                   WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
-                  webClient.post(9080, "host.docker.internal", "/train-response") 
+                  webClient.post(9080, "localhost", "/train-response") 
                           .sendJsonObject(completeData)
                           .onSuccess(res -> logger.info("Payload sent successfully"))
                           .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));

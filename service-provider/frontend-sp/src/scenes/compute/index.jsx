@@ -14,7 +14,7 @@ const ComputationPage = () => {
     const navigate = useNavigate()
     const handleTrainingButtonClick = () => {
       console.log('Training button clicked');
-      var url = 'http://host.docker.internal:9081/compute'
+      var url = 'http://localhost:9081/compute'
       fetch(url, {
         method: 'GET',
         mode: 'cors',
@@ -37,7 +37,7 @@ const ComputationPage = () => {
     };
   
     const handleRefreshStatusButtonClick = async () => {
-      var url = 'http://host.docker.internal:9081/get-logs'
+      var url = 'http://localhost:9081/get-logs'
       let data = await fetch(url, {
         method: 'GET',
         mode: 'cors',

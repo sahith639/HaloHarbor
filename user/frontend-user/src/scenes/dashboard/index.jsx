@@ -35,7 +35,7 @@ const Dashboard = () => {
         "1": checkboxName=="1"?!checkbox1:checkbox1,
         "2": checkboxName=="2"?!checkbox2:checkbox2
       };
-      var url = 'http://host.docker.internal:9080/user-settings'
+      var url = 'http://localhost:9080/user-settings'
       fetch(url, {
         method: 'POST',
         headers: {
