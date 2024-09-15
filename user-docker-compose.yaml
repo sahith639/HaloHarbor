@@ -4,14 +4,30 @@ services:
 
   frontend:
     build: "./user/frontend-user"
-    container_name: user-frontend  
+    #container_name: user-frontend 
+    deploy:
+      mode: replicated
+      replicas: 2
     ports:
-      - 3001:3000 # Using port 3001 instead of 3000 so that frontend team can run frontend locally as well.
+      - 3001-3002:3000 # Using port 3001 instead of 3000 so that frontend team can run frontend locally as well.
     networks:
       - network
     environment:
       REACT_APP_USER_CONTROLLER_BASE_URL: "http://localhost:9080"
       PORT: 3000
+    # container_name: user-frontend  
+        
+    #     deploy:
+    #       mode: replicated
+    #       replicas: 2
+    #     ports:
+    #       #- 3001:3000 # Using port 3001 instead of 3000 so that frontend team can run frontend locally as well.
+    #       - 3001-3002:3000
+    #     networks:
+    #       - network
+    #     environment:
+    #       REACT_APP_USER_CONTROLLER_BASE_URL: "http://localhost:9080"
+    #       PORT: 3000
 
   controller:
     build:
