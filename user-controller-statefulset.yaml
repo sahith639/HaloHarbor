@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: user-controller
+  namespace: my-app-xlab
+spec:
+  serviceName: "user-controller"
+  replicas: 2  # Match with frontend replicas
+  selector:
+    matchLabels:
+      app: user-controller
+  template:
+    metadata:
+      labels:
+        app: user-controller
+    spec:
+      imagePullSecrets:
+      - name: my-registry-secret1
+      containers:
+      - name: user-controller
+        image: nsf-user-employee-demo-controller:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9080
+        env:
+        - name: MONGO_DB_URI
+          value: "mongodb://user-controller-db-$(HOSTNAME).my-app-xlab:27017"  # Corresponding MongoDB instance
+        - name: AGENT_URL
+          value: "http://user-acapy-agent-$(HOSTNAME).my-app-xlab:9031"
+        - name: PORT
+          value: "9080"

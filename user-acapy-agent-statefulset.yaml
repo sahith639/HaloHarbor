@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: user-acapy-agent
+  namespace: my-app-xlab  # Replace with your namespace if different
+spec:
+  serviceName: "user-acapy-agent"
+  replicas: 2  # Number of replicas you want
+  selector:
+    matchLabels:
+      app: user-acapy-agent
+  template:
+    metadata:
+      labels:
+        app: user-acapy-agent
+    spec:
+      containers:
+      - name: user-acapy-agent
+        image: ghcr.io/hyperledger/aries-cloudagent-python:py3.9-indy-1.16.0-0.10.4
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: admin
+          containerPort: 9031
+        - name: inbound
+          containerPort: 9030
+        env:
+        - name: POSTGRES_USER
+          value: "postgres"
+        - name: POSTGRES_PASSWORD
+          value: "postgres"
+        command:
+        - "aca-py"   # This is the correct executable command for ACA-Py
+        args:
+        - "start"
+        - "--log-level"
+        - "debug"
+        - "--inbound-transport"
+        - "http"
+        - "0.0.0.0"
+        - "9030"
+        - "--outbound-transport"
+        - "http"
+        - "--endpoint"
+        - "http://user-acapy-agent.my-app-xlab.svc.cluster.local:9030"  # Use Kubernetes service name
+        - "--webhook-url"
+        - "http://controller-service.my-app-xlab.svc.cluster.local:9080/webhook"  # Replace with your controller's service name
+        - "--label"
+        - "user.agent"
+        - "--admin-insecure-mode"  # Use for development. In production, use --admin-api-key.
+        - "--admin"
+        - "0.0.0.0"
+        - "9031"
+        - "--genesis-url"
+        - "http://test.bcovrin.vonx.io/genesis"
+        - "--wallet-type"
+        - "askar"
+        - "--wallet-name"
+        - "user-wallet"
+        - "--wallet-key"
+        - "wallet-password"
+        - "--wallet-storage-type"
+        - "postgres_storage"
+        - "--wallet-storage-config"
+        - "{\"url\":\"user-acapy-postgres-db.my-app-xlab.svc.cluster.local:5432/user-wallet\",\"max_connections\":5,\"wallet_scheme\":\"DatabasePerWallet\"}"
+        - "--wallet-storage-creds"
+        - "{\"account\":\"postgres\",\"password\":\"postgres\",\"admin_account\":\"postgres\",\"admin_password\":\"postgres\"}"
+      volumes:
+      - name: postgres-data
+        persistentVolumeClaim:
+          claimName: postgres-pvc  # Make sure this PVC exists
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-acapy-agent
+  namespace: my-app-xlab
+spec:
+  clusterIP: None  # Headless service for StatefulSet
+  selector:
+    app: user-acapy-agent
+  ports:
+  - name: admin
+    port: 9031
+    targetPort: 9031
+  - name: inbound
+    port: 9030
+    targetPort: 9030

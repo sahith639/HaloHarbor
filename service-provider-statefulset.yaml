@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: sp-frontend
+  namespace: my-app-xlab
+spec:
+  serviceName: "sp-frontend"
+  replicas: 3  
+  selector:
+    matchLabels:
+      app: sp-frontend
+  template:
+    metadata:
+      labels:
+        app: sp-frontend
+    spec:
+      imagePullSecrets:
+      - name: my-registry-secret
+      containers:
+      - name: sp-frontend
+        image: nsf-service-provider-employer-demo-frontend:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5000
+        env:
+        - name: REACT_APP_BACKEND_BASE_URL
+          value: "http://backend_db:9081"
+          
+
+        - name: PORT
+          value: "5000"

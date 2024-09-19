@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: flclient
+  namespace: my-app-xlab
+spec:
+  serviceName: "flclient"
+  replicas: 2  # Match with frontend replicas
+  selector:
+    matchLabels:
+      app: flclient
+  template:
+    metadata:
+      labels:
+        app: flclient
+    spec:
+      imagePullSecrets:
+      - name: my-registry-secret1
+      containers:
+      - name: flclient
+        image: nsf-user-employee-demo-flclient:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 4600

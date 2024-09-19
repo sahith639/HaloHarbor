@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: mongo-db-pv
+  namespace: my-app-xlab
+spec:
+  capacity:
+    storage: 5Gi  # Must match the storage request in your PVC
+  accessModes:
+    - ReadWriteOnce
+  persistentVolumeReclaimPolicy: Retain
+  hostPath:
+    path: "/var/lib/mongo"  # This should be a valid path on your host machine or node

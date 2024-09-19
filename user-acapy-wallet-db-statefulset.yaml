@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: user-acapy-postgres-db
+  namespace: my-app-xlab
+spec:
+  serviceName: "user-acapy-postgres-db"
+  replicas: 2  # Number of replicas
+  selector:
+    matchLabels:
+      app: user-acapy-postgres-db
+  template:
+    metadata:
+      labels:
+        app: user-acapy-postgres-db
+    spec:
+      containers:
+      - name: postgres
+        image: postgres:14.1-alpine
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_USER
+          value: postgres
+        - name: POSTGRES_PASSWORD
+          value: postgres
+        volumeMounts:
+        - name: postgres-data
+          mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-data  # Name of the volume inside the pod
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 5Gi  # Adjust based on your needs
+      storageClassName: hostpath  # Reference the correct StorageClass

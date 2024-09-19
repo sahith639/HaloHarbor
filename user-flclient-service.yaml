@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: flclient
+  namespace: my-app-xlab
+spec:
+  clusterIP: None  # Headless service
+  selector:
+    app: flclient
+  ports:
+  - port: 4600
+    targetPort: 4600
+
