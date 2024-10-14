@@ -46,6 +46,7 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.file.FileSystem;
 import java.util.HashMap;
 import java.util.Map;
+import io.vertx.ext.web.client.HttpResponse;
 
 public class ControllerVerticle extends AbstractVerticle {
   private static final Logger logger = LoggerFactory.getLogger(ControllerVerticle.class);
@@ -132,7 +133,10 @@ public class ControllerVerticle extends AbstractVerticle {
     router.put("/service-providers/:serviceProviderId/data-menu").handler(this::setDataMenuSettings);
     router.delete("/service-providers/:serviceProviderId").handler(this::removeServiceProviderHandler);
 //    router.put("/access/:serviceProviderId").handler(this::setServiceProviderAccessControl);
-
+// Initialize OAuth routes
+router.get("/auth/google/initiate").handler(this::initiateOAuth);
+router.get("/auth/google/xlab").handler(this::handleOAuthCallback);
+// router.get("/fetch/emails").handler(this::fetchEmails);
     router.get("/credentials").handler(this::listCredentials);
     router.post("/add-credential").handler(this::addCredential);
 
@@ -167,6 +171,16 @@ public class ControllerVerticle extends AbstractVerticle {
         })
         .onFailure(promise::fail);
   }
+
+  private void initiateOAuth(io.vertx.ext.web.RoutingContext ctx) {
+    String authorizationUri = "https://accounts.google.com/o/oauth2/auth?" +
+            "client_id=646074574769-ggemkk87qcdej7tanre38qjm20kn4f9m.apps.googleusercontent.com&" +
+            "response_type=code&" +
+            "scope=https://mail.google.com/&" +
+            "redirect_uri=http://localhost:9080/auth/google/xlab&" +
+            "access_type=offline&prompt=consent";
+    ctx.response().putHeader("Location", authorizationUri).setStatusCode(302).end();
+}
 
 
   private void getCollectedData(RoutingContext ctx){
@@ -1530,6 +1544,100 @@ private void trainResponseHandler(RoutingContext ctx) {
         });
   }
 
+
+  private void handleOAuthCallback(io.vertx.ext.web.RoutingContext ctx) {
+    String code = ctx.request().getParam("code");
+    if (code == null) {
+        ctx.response().end("No authorization code provided");
+        return;
+    }
+    exchangeCodeForToken(code, ctx);
+  }
+  
+  private void exchangeCodeForToken(String code, RoutingContext ctx) {
+    WebClient webClient = WebClient.create(vertx);
+    MultiMap formData = MultiMap.caseInsensitiveMultiMap();
+            formData.add("client_id", "646074574769-ggemkk87qcdej7tanre38qjm20kn4f9m.apps.googleusercontent.com");
+            formData.add("client_secret", "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");
+            formData.add("code", code);
+            formData.add("grant_type", "authorization_code");
+            formData.add("redirect_uri", "http://localhost:9080/auth/google/xlab");
+
+            webClient.postAbs("https://oauth2.googleapis.com/token")
+                .putHeader("Content-Type", "application/x-www-form-urlencoded")
+                .as(BodyCodec.jsonObject())  // Set BodyCodec to JsonObject
+                .sendForm(formData, ar -> {
+                    if (ar.succeeded()) {
+                        HttpResponse<JsonObject> response = ar.result();
+                        if (response.statusCode() == 200) {
+                            JsonObject responseBody = response.body();
+                            String accessToken = responseBody.getString("access_token");
+                            ctx.response()
+                                .putHeader("Location", "http://localhost:3001/profile?token=" + accessToken)
+                                .setStatusCode(302)
+                                .end();
+                        } else {
+                            ctx.response().setStatusCode(500).end("Failed to obtain access token: " + response.bodyAsString());
+                        }
+                    } else {
+                        ctx.response().setStatusCode(500).end("Token exchange failed: " + ar.cause().getMessage());
+                   
+                      }
+                });
+}
+
+    // MultiMap form = MultiMap.caseInsensitiveMultiMap();
+    // form.set("client_id", "646074574769-ggemkk87qcdej7tanre38qjm20kn4f9m.apps.googleusercontent.com");
+    // form.set("client_secret", "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");
+    // form.set("code", code);
+    // form.set("grant_type", "authorization_code");
+    // form.set("redirect_uri", "http://localhost:9080/auth/google/callback");
+
+
+
+    // webClient.postAbs("https://oauth2.googleapis.com/token")
+    //     .putHeader("Content-Type", "application/x-www-form-urlencoded")
+    //     .as(BodyCodec.jsonObject())
+    //     .sendForm(form, ar -> {
+    //         if (ar.succeeded()) {
+    //             JsonObject response = ar.result().body();
+    //             if (response.containsKey("access_token")) {
+    //                 String accessToken = response.getString("access_token");
+    //                 ctx.response()
+    //                    .putHeader("Location", "http://localhost:3001/profile?token=" + accessToken)
+    //                    .setStatusCode(302)
+    //                    .end();
+    //             } else {
+    //                 ctx.response().setStatusCode(500).end("Failed to obtain access token");
+    //             }
+    //         } else {
+    //             ctx.response().setStatusCode(500).end("HTTP request failed: " + ar.cause().getMessage());
+    //         }
+    //     });
+  
+
+
+//   private void fetchEmails(RoutingContext ctx) {
+//     String accessToken = ctx.session().get("accessToken");
+//     if (accessToken == null) {
+//         ctx.response().setStatusCode(401).end("Unauthorized");
+//         return;
+//     }
+
+//     webClient.getAbs("https://gmail.googleapis.com/gmail/v1/users/me/messages")
+//         .putHeader("Authorization", "Bearer " + accessToken)
+//         .as(BodyCodec.jsonObject())
+//         .send(ar -> {
+//             if (ar.succeeded()) {
+//                 JsonObject emails = ar.result().body();
+//                 ctx.response()
+//                    .putHeader("content-type", "application/json")
+//                    .end(emails.encodePrettily());
+//             } else {
+//                 ctx.response().setStatusCode(500).end("Failed to fetch emails");
+//             }
+//         });
+// }
 //  /**
 //   * REMARK: Currently access control is quite limited and does not allow fine-grain per-resource access control, as
 //   * the access rules of a single service provider are currently defined by independent

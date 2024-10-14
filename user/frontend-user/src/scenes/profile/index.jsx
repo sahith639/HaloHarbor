@@ -12,7 +12,7 @@ import config from '../../utils/config'
 import BCGovCredentialDetailModal from '../../components/BCGovCredentialDetailModal';
 import { ToastContainer, toast } from 'react-toastify';
 import ExampleDataIntegrateModal from '../../components/ExampleDataIntegrateModal';
-
+import Maps from '../../components/Maps';
 
 const Profile = () => {
     const theme = useTheme();
@@ -79,6 +79,9 @@ const Profile = () => {
             Data Source Integrations
           
           </Typography>
+          <div>
+            <Maps/>
+          </div>
           
           <div>
           {("spotify" in dataSources) ? (
