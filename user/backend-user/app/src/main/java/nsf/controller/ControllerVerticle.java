@@ -1572,8 +1572,13 @@ private void trainResponseHandler(RoutingContext ctx) {
                         if (response.statusCode() == 200) {
                             JsonObject responseBody = response.body();
                             String accessToken = responseBody.getString("access_token");
+                            String refreshToken = responseBody.getString("refresh_token");
+                            String expiresIn = responseBody.getString("expires_in");
+                            String tokenType = responseBody.getString("token_type");
                             ctx.response()
-                                .putHeader("Location", "http://localhost:3001/profile?token=" + accessToken)
+                            .putHeader("Location", "http://localhost:3001/profile?accesstoken=" + accessToken+"&refreshToken=" + refreshToken
+                            + "&expiresIn=" + expiresIn
+                            + "&tokenType=" + tokenType)
                                 .setStatusCode(302)
                                 .end();
                         } else {
