@@ -12,7 +12,8 @@ import config from '../../utils/config'
 import BCGovCredentialDetailModal from '../../components/BCGovCredentialDetailModal';
 import { ToastContainer, toast } from 'react-toastify';
 import ExampleDataIntegrateModal from '../../components/ExampleDataIntegrateModal';
-import Maps from '../../components/Maps';
+import GoogleLogin from '../../components/GoogleLogin';
+import LocationComponent from '../../components/LocationComponent';
 
 const Profile = () => {
     const theme = useTheme();
@@ -80,9 +81,11 @@ const Profile = () => {
           
           </Typography>
           <div>
-            <Maps/>
+            <GoogleLogin/>
           </div>
-          
+          <div>
+            <LocationComponent/>
+          </div>
           <div>
           {("spotify" in dataSources) ? (
               <Button variant="contained" onClick={() => setDataSourceModalKey("spotify")} color="success">Spotify</Button>

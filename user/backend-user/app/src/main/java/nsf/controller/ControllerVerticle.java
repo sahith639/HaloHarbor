@@ -58,6 +58,8 @@ public class ControllerVerticle extends AbstractVerticle {
   private final BaseServProvService servProvService;
   private final BaseDataService dataService;
   private static JsonObject userSettings;
+  private MongoClient oauthMongoClient;
+  private MongoClient locationMongoClient;
   private ConcurrentHashMap<String, ConcurrentHashMap<Integer, String>> dataParts = new ConcurrentHashMap<>();
 
 
@@ -76,6 +78,7 @@ public class ControllerVerticle extends AbstractVerticle {
   private final Map<String, Promise<JsonObject>> waitingForServerInfoCtx = new ConcurrentHashMap<>();
   private final Map<String, RoutingContext> waitingForSharedDataAckCtx = new ConcurrentHashMap<>();
   private final Map<String, Promise<JsonObject>> waitingForConnResponse = new ConcurrentHashMap<>();
+  
 
   Random random = new Random();
 
@@ -105,6 +108,25 @@ public class ControllerVerticle extends AbstractVerticle {
 //        .allowedHeader("Access-Control-Allow-Origin")
 //        .allowedHeader("Access-Control-Allow-Credentials")
 //        .allowedHeader("Content-Type"));
+
+//Testing the mongodbConnection
+  oauthMongoClient = MongoClient.createShared(vertx, new JsonObject()
+        .put("connection_string", "mongodb://localhost:37017/oauthDatabase"));
+
+  //       JsonObject document = new JsonObject()
+  //       .put("email", "example@example.com")
+  //       .put("name", "snow Doe");
+    
+  //   oauthMongoClient.save("myNewDatabase.myCollection", document, res -> {
+  //       if (res.succeeded()) {
+  //           System.out.println("Document saved!");
+  //       } else {
+  //           System.out.println("Save failed: " + res.cause().getMessage());
+  //       }
+  //   });
+
+
+    
     router.route().handler(BodyHandler.create());
 
     router.route().handler(ctx -> {
@@ -134,8 +156,9 @@ public class ControllerVerticle extends AbstractVerticle {
     router.delete("/service-providers/:serviceProviderId").handler(this::removeServiceProviderHandler);
 //    router.put("/access/:serviceProviderId").handler(this::setServiceProviderAccessControl);
 // Initialize OAuth routes
-router.get("/auth/google/initiate").handler(this::initiateOAuth);
-router.get("/auth/google/xlab").handler(this::handleOAuthCallback);
+  router.get("/auth/google/initiate").handler(this::initiateOAuth);
+  router.get("/auth/google/xlab").handler(this::handleOAuthCallback);
+
 // router.get("/fetch/emails").handler(this::fetchEmails);
     router.get("/credentials").handler(this::listCredentials);
     router.post("/add-credential").handler(this::addCredential);
@@ -159,6 +182,7 @@ router.get("/auth/google/xlab").handler(this::handleOAuthCallback);
     router.post("/webhook/topic/present_proof").handler(this::presentProofUpdate);
     router.post("/webhook/topic/out_of_band").handler(this::outOfBandHandler);
     router.post("/webhook/topic/basicmessages").handler(this::basicMessageHandler);
+    router.post("/api/location").handler(this::handleLocationPost);
     userSettings = new JsonObject().put("0",true).put("1",true).put("2",true);
     int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9080"));
     vertx.createHttpServer()
@@ -172,11 +196,49 @@ router.get("/auth/google/xlab").handler(this::handleOAuthCallback);
         .onFailure(promise::fail);
   }
 
+  private void handleLocationPost(RoutingContext context) {
+    JsonObject json = context.getBodyAsJson();
+    mongoClient.save("locationDataCollection", json, res -> {
+      if (res.succeeded()) {
+        context.response()
+          .setStatusCode(200)
+          .putHeader("Content-Type", "application/json")
+          .end(new JsonObject().put("status", "Location data saved successfully!").encode());
+      } else {
+        logger.error("Failed to save location data: " + res.cause());
+        context.response()
+          .setStatusCode(500)
+          .putHeader("Content-Type", "application/json")
+          .end(new JsonObject().put("error", "Failed to save location data").encode());
+      }
+    });
+}
+
+
+private void saveLocationData(LocationData locationData, Handler<AsyncResult<Void>> resultHandler) {
+  
+  locationMongoClient = MongoClient.createShared(vertx, new JsonObject()
+  .put("connection_string", "mongodb://localhost:37017/mapsDatabase"));
+
+  JsonObject document = new JsonObject()
+      .put("latitude", locationData.getLatitude())
+      .put("longitude", locationData.getLongitude())
+      .put("timestamp", locationData.getTimestamp());
+
+      locationMongoClient.save("locationDataCollection", document, res -> {
+      if (res.succeeded()) {
+          resultHandler.handle(Future.succeededFuture());
+      } else {
+          resultHandler.handle(Future.failedFuture(res.cause()));
+      }
+  });
+}
+
   private void initiateOAuth(io.vertx.ext.web.RoutingContext ctx) {
     String authorizationUri = "https://accounts.google.com/o/oauth2/auth?" +
             "client_id=646074574769-ggemkk87qcdej7tanre38qjm20kn4f9m.apps.googleusercontent.com&" +
             "response_type=code&" +
-            "scope=https://mail.google.com/&" +
+            "scope=https://www.googleapis.com/auth/userinfo.email&" +
             "redirect_uri=http://localhost:9080/auth/google/xlab&" +
             "access_type=offline&prompt=consent";
     ctx.response().putHeader("Location", authorizationUri).setStatusCode(302).end();
@@ -1545,6 +1607,35 @@ private void trainResponseHandler(RoutingContext ctx) {
   }
 
 
+  // private Future<JsonObject> callGoogleApi(String url){
+  //   Promise<JsonObject> promise = Promise.promise();
+  //   refreshGoogleAccessToken()
+  //       .onSuccess(accessToken -> {
+  //         WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(true));
+
+  //         webClient.getAbs(url)
+  //             .putHeader("Authorization", "Bearer " + accessToken)
+  //             .send(ar -> {
+  //               if (ar.succeeded()) {
+  //                 try{
+  //                   JsonObject responseBody = ar.result().bodyAsJsonObject();
+  //                   promise.complete(responseBody);
+  //                 }
+  //                 catch (Exception e){
+  //                   promise.fail("Error calling Google API: " + ar.result().statusCode() + " - " + ar.result().bodyAsString() + " - " + ar.cause());
+  //                 }
+  //               } else {
+  //                 promise.fail("Error calling Google API: " + ar.result().statusCode() + " - " + ar.result().bodyAsString() + " - " + ar.cause());
+  //               }
+  //             });
+  //       })
+  //       .onFailure(e -> {
+  //         logger.error(e.toString());
+  //       });
+  //   return promise.future();
+  // }
+
+
   private void handleOAuthCallback(io.vertx.ext.web.RoutingContext ctx) {
     String code = ctx.request().getParam("code");
     if (code == null) {
@@ -1553,7 +1644,70 @@ private void trainResponseHandler(RoutingContext ctx) {
     }
     exchangeCodeForToken(code, ctx);
   }
-  
+//   private void saveTokenData(JsonObject tokenData) {
+//     // mongoClient.save("data_sources", dataSourceDoc, h -> {
+//     //   if (h.succeeded()){
+//     //     logger.info("saved refreshed tokens: " + accessToken);
+//     //     promise.complete(accessToken);
+//     //   }
+//     //   else{
+//     //     promise.fail("Failed to save new tokens.");
+//     //   }
+//     // });
+//     mongoClient.save("data_sources", tokenData, res -> {
+//         if (res.succeeded()) {
+//             System.out.println("Token data saved with ID: " + res.result());
+//         } else {
+//             System.err.println("Failed to save token data: " + res.cause().getMessage());
+//         }
+//     });
+// } 
+
+  private void saveTokenData(JsonObject tokenData, RoutingContext ctx) {
+    long expiresIn = Long.parseLong(tokenData.getString("expires_in")) * 1000;
+    long expiresAt = System.currentTimeMillis() + expiresIn;
+    JsonObject document = new JsonObject()
+        .put("id","1")
+        .put("accessToken", tokenData.getString("access_token"))
+        .put("refreshToken", tokenData.getString("refresh_token"))
+        .put("expiresAt", expiresAt)
+        .put("tokenType", tokenData.getString("token_type"));
+    oauthMongoClient.save("oauth_tokens", document, res -> {
+        if (res.succeeded()) {
+            ctx.response()
+              .putHeader("Location", "http://localhost:3001/profile")
+              .setStatusCode(302)
+              .end();
+        } else {
+            ctx.response()
+              .setStatusCode(500)
+              .end("Failed to save token data: " + res.cause().getMessage());
+        }
+    });
+
+
+    // // Define the query to retrieve the document with ID "1"
+    // JsonObject query = new JsonObject().put("id", "1");
+
+    // // Execute the find operation
+    // oauthMongoClient.find("oauth_tokens", query, res -> {
+    //     if (res.succeeded()) {
+    //         if (!res.result().isEmpty()) {
+    //             JsonObject token1Data = res.result().get(0);
+    //              String access_token1=token1Data.getString("accessToken");
+                 
+    //         } else {
+                
+    //         }
+    //     } else {
+    //         System.err.println("Failed to retrieve the access token: " + res.cause().getMessage());
+    //     }
+    //     mongoClient.close();
+    // });
+
+    
+  }
+
   private void exchangeCodeForToken(String code, RoutingContext ctx) {
     WebClient webClient = WebClient.create(vertx);
     MultiMap formData = MultiMap.caseInsensitiveMultiMap();
@@ -1575,12 +1729,37 @@ private void trainResponseHandler(RoutingContext ctx) {
                             String refreshToken = responseBody.getString("refresh_token");
                             String expiresIn = responseBody.getString("expires_in");
                             String tokenType = responseBody.getString("token_type");
+                           
+                            saveTokenData(response.body(), ctx);  
+                            //saveTokenData(dataSourceDoc);
+
+                             // Define the query to retrieve the document with ID "1"
+                              JsonObject query = new JsonObject().put("id", "1");
+
+                              // Execute the find operation
+                              oauthMongoClient.find("oauth_tokens", query, res -> {
+                                  if (res.succeeded()) {
+                                      if (!res.result().isEmpty()) {
+                                          JsonObject token1Data = res.result().get(0);
+                                          String access_token1=token1Data.getString("accessToken");
+                                          //console.log("AccessTokem"+access_token1);
+                                          
+                                      } else {
+                                          
+                                      }
+                                  } else {
+                                      System.err.println("Failed to retrieve the access token: " + res.cause().getMessage());
+                                  }
+                                  mongoClient.close();
+                              });
+
                             ctx.response()
                             .putHeader("Location", "http://localhost:3001/profile?accesstoken=" + accessToken+"&refreshToken=" + refreshToken
                             + "&expiresIn=" + expiresIn
                             + "&tokenType=" + tokenType)
                                 .setStatusCode(302)
                                 .end();
+                          
                         } else {
                             ctx.response().setStatusCode(500).end("Failed to obtain access token: " + response.bodyAsString());
                         }
@@ -1590,59 +1769,6 @@ private void trainResponseHandler(RoutingContext ctx) {
                       }
                 });
 }
-
-    // MultiMap form = MultiMap.caseInsensitiveMultiMap();
-    // form.set("client_id", "646074574769-ggemkk87qcdej7tanre38qjm20kn4f9m.apps.googleusercontent.com");
-    // form.set("client_secret", "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");
-    // form.set("code", code);
-    // form.set("grant_type", "authorization_code");
-    // form.set("redirect_uri", "http://localhost:9080/auth/google/callback");
-
-
-
-    // webClient.postAbs("https://oauth2.googleapis.com/token")
-    //     .putHeader("Content-Type", "application/x-www-form-urlencoded")
-    //     .as(BodyCodec.jsonObject())
-    //     .sendForm(form, ar -> {
-    //         if (ar.succeeded()) {
-    //             JsonObject response = ar.result().body();
-    //             if (response.containsKey("access_token")) {
-    //                 String accessToken = response.getString("access_token");
-    //                 ctx.response()
-    //                    .putHeader("Location", "http://localhost:3001/profile?token=" + accessToken)
-    //                    .setStatusCode(302)
-    //                    .end();
-    //             } else {
-    //                 ctx.response().setStatusCode(500).end("Failed to obtain access token");
-    //             }
-    //         } else {
-    //             ctx.response().setStatusCode(500).end("HTTP request failed: " + ar.cause().getMessage());
-    //         }
-    //     });
-  
-
-
-//   private void fetchEmails(RoutingContext ctx) {
-//     String accessToken = ctx.session().get("accessToken");
-//     if (accessToken == null) {
-//         ctx.response().setStatusCode(401).end("Unauthorized");
-//         return;
-//     }
-
-//     webClient.getAbs("https://gmail.googleapis.com/gmail/v1/users/me/messages")
-//         .putHeader("Authorization", "Bearer " + accessToken)
-//         .as(BodyCodec.jsonObject())
-//         .send(ar -> {
-//             if (ar.succeeded()) {
-//                 JsonObject emails = ar.result().body();
-//                 ctx.response()
-//                    .putHeader("content-type", "application/json")
-//                    .end(emails.encodePrettily());
-//             } else {
-//                 ctx.response().setStatusCode(500).end("Failed to fetch emails");
-//             }
-//         });
-// }
 //  /**
 //   * REMARK: Currently access control is quite limited and does not allow fine-grain per-resource access control, as
 //   * the access rules of a single service provider are currently defined by independent
