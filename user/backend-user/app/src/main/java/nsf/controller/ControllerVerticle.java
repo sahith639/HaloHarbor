@@ -78,7 +78,7 @@ public class ControllerVerticle extends AbstractVerticle {
   private final Map<String, Promise<JsonObject>> waitingForServerInfoCtx = new ConcurrentHashMap<>();
   private final Map<String, RoutingContext> waitingForSharedDataAckCtx = new ConcurrentHashMap<>();
   private final Map<String, Promise<JsonObject>> waitingForConnResponse = new ConcurrentHashMap<>();
-  
+
 
   Random random = new Random();
 
@@ -113,20 +113,8 @@ public class ControllerVerticle extends AbstractVerticle {
   oauthMongoClient = MongoClient.createShared(vertx, new JsonObject()
         .put("connection_string", "mongodb://localhost:37017/oauthDatabase"));
 
-  //       JsonObject document = new JsonObject()
-  //       .put("email", "example@example.com")
-  //       .put("name", "snow Doe");
-    
-  //   oauthMongoClient.save("myNewDatabase.myCollection", document, res -> {
-  //       if (res.succeeded()) {
-  //           System.out.println("Document saved!");
-  //       } else {
-  //           System.out.println("Save failed: " + res.cause().getMessage());
-  //       }
-  //   });
 
 
-    
     router.route().handler(BodyHandler.create());
 
     router.route().handler(ctx -> {
@@ -156,8 +144,14 @@ public class ControllerVerticle extends AbstractVerticle {
     router.delete("/service-providers/:serviceProviderId").handler(this::removeServiceProviderHandler);
 //    router.put("/access/:serviceProviderId").handler(this::setServiceProviderAccessControl);
 // Initialize OAuth routes
+  // router.get("/auth/google/initiate").handler(this::initiateOAuth);
+  // router.get("/auth/google/xlab").handler(this::attemptFetchProfile);
+
   router.get("/auth/google/initiate").handler(this::initiateOAuth);
   router.get("/auth/google/xlab").handler(this::handleOAuthCallback);
+  
+  
+  router.get("/auth/fetchProfile").handler(this::attemptFetchProfile);
 
 // router.get("/fetch/emails").handler(this::fetchEmails);
     router.get("/credentials").handler(this::listCredentials);
@@ -216,7 +210,7 @@ public class ControllerVerticle extends AbstractVerticle {
 
 
 private void saveLocationData(LocationData locationData, Handler<AsyncResult<Void>> resultHandler) {
-  
+
   locationMongoClient = MongoClient.createShared(vertx, new JsonObject()
   .put("connection_string", "mongodb://localhost:37017/mapsDatabase"));
 
@@ -238,7 +232,7 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
     String authorizationUri = "https://accounts.google.com/o/oauth2/auth?" +
             "client_id=646074574769-ggemkk87qcdej7tanre38qjm20kn4f9m.apps.googleusercontent.com&" +
             "response_type=code&" +
-            "scope=https://www.googleapis.com/auth/userinfo.email&" +
+            "scope=https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile&" +
             "redirect_uri=http://localhost:9080/auth/google/xlab&" +
             "access_type=offline&prompt=consent";
     ctx.response().putHeader("Location", authorizationUri).setStatusCode(302).end();
@@ -260,8 +254,8 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
 
 
 private void userSettingsHandler(RoutingContext ctx) {
-    
-    
+
+
     JsonObject jsonObject;
             try {
                 jsonObject = ctx.getBodyAsJson();
@@ -275,7 +269,7 @@ private void userSettingsHandler(RoutingContext ctx) {
                 logger.error("Invalid JSON format");
                 return;
             }
-     
+
       ctx.response().setStatusCode(200).end();
       return;
 
@@ -295,7 +289,7 @@ private void trainResponseHandler(RoutingContext ctx) {
     //        ctx.response().setStatusCode(500).end();
     //    }
      logger.info("handler");
-    
+
     JsonObject jsonObject;
             try {
                 jsonObject = ctx.getBodyAsJson();
@@ -318,7 +312,7 @@ private void trainResponseHandler(RoutingContext ctx) {
         final int n = divided.length;
         Thread thread = new Thread(() -> {
             for (int i = 0; i < n; i++) {
-                final String divided_str = divided[i];                               
+                final String divided_str = divided[i];
                 sendBasicMessage(connId, "TRAIN_RESPONSE", new JsonObject().put("id",i).put("total",pieces).put("value",divided_str), null);
             }
         });
@@ -334,14 +328,14 @@ private void trainResponseHandler(RoutingContext ctx) {
         if (input == null || input.isEmpty()) {
             return new String[0];
         }
-        
+
         int length = input.length();
         int pieces = Math.max(length/350000,1); // Number of pieces to divide the string into
         int pieceSize = length / pieces; // Size of each piece
         int remainder = length % pieces; // Remainder if string length is not divisible by pieces
-        
+
         String[] divided = new String[pieces];
-        
+
         // Divide the string into pieces
         int startIndex = 0;
         for (int i = 0; i < pieces; i++) {
@@ -349,7 +343,7 @@ private void trainResponseHandler(RoutingContext ctx) {
             divided[i] = input.substring(startIndex, endIndex);
             startIndex = endIndex;
         }
-        
+
         return divided;
     }
 
@@ -444,7 +438,7 @@ private void trainResponseHandler(RoutingContext ctx) {
       }
       break;
       case "INFO_RESPONSE":
-      {        
+      {
         var waitingPromise = waitingForServerInfoCtx.remove(messageId);
         JsonObject payloadData = (JsonObject)payload;
         waitingPromise.complete(payloadData);
@@ -492,7 +486,7 @@ private void trainResponseHandler(RoutingContext ctx) {
           divided.add(divided.size(),"QWERTY");
         }
         if(divided.size()==total && (divided.contains("QWERTY")) ){
-        
+
           divided.add(id , content);
           payloadData = (JsonObject)Json.decodeValue(String.join("",divided));
           logger.info("Sending payload");
@@ -510,7 +504,7 @@ private void trainResponseHandler(RoutingContext ctx) {
     }*/
 
     case "TRAIN":
-    {   
+    {
         JsonObject payloadData = (JsonObject)payload;
         int id = payloadData.getInteger("id");
         String client_id = payloadData.getString("client_id");
@@ -520,28 +514,28 @@ private void trainResponseHandler(RoutingContext ctx) {
         String content = payloadData.getString("value");
         // Get or create a map for storing segments for this specific connection
         ConcurrentHashMap<Integer, String> segments = dataParts.computeIfAbsent(connId, k -> new ConcurrentHashMap<>());
-      
+
         // Store the current segment
         segments.put(id, content);
 
         // Check if all segments from 0 to total-1 are present
         if (segments.size() == total && segments.keySet().stream().sorted().reduce((a, b) -> a + 1 == b ? b : -1).orElse(-1) + 1 == total) {
-            
+
             logger.info("Client: "+ client_id + userSettings.encode());
-            
+
             if(String.valueOf(userSettings.getBoolean(client_id)).equals("true")){
 
               StringBuilder fullContent = new StringBuilder();
               for (int i = 0; i < total; i++) {
                   fullContent.append(segments.get(i));
               }
-              
+
               // Log that we are sending the complete payload
               logger.info("Sending full payload");
               JsonObject completeData = new JsonObject().put("completeData", fullContent.toString());
 
               WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
-              webClient.post(4600, "host.docker.internal", "/train") 
+              webClient.post(4600, "host.docker.internal", "/train")
                   .sendJsonObject(completeData)
                   .onSuccess(res -> logger.info("Payload sent successfully"))
                   .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
@@ -549,7 +543,7 @@ private void trainResponseHandler(RoutingContext ctx) {
                   logger.info("Rejecting the Training");
                   JsonObject completeData = new JsonObject().put("value", "None").put("data", new JsonObject().put("client_id", client_id));
                   WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
-                  webClient.post(9080, "host.docker.internal", "/train-response") 
+                  webClient.post(9080, "host.docker.internal", "/train-response")
                           .sendJsonObject(completeData)
                           .onSuccess(res -> logger.info("Payload sent successfully"))
                           .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
@@ -561,7 +555,7 @@ private void trainResponseHandler(RoutingContext ctx) {
               logger.info("Waiting for more segments. Current count: " + segments.size() + "/" + total);
           }
 
-        
+
       }
       break;
       case "COMPUTE":
@@ -570,7 +564,7 @@ private void trainResponseHandler(RoutingContext ctx) {
               FileSystem fileSystem = vertx.fileSystem();
               // Read the CSV file
               logger.info(System.getProperty("user.dir"));
-              
+
               fileSystem.readFile(filePath, result -> {
                   if (result.succeeded()) {
                       Buffer buffer = result.result();
@@ -590,7 +584,7 @@ private void trainResponseHandler(RoutingContext ctx) {
                       logger.info("Failed to read the file: " + result.cause());
                   }
               });
-              
+
             }
             break;
     }
@@ -1606,34 +1600,169 @@ private void trainResponseHandler(RoutingContext ctx) {
         });
   }
 
+  //validity = 1=new entry, 2=updaterefreshtoken, 0=no updating
+  //Currently testing with a singleuser emailid just for the dataplug
+// Step 1: Attempt to Fetch Profile using stored token
+private void attemptFetchProfile(RoutingContext ctx) {
+  oauthMongoClient.findOne("tokens", new JsonObject().put("email", "shikharapagadala17@gmail.com"), null, res -> {
+      if (res.succeeded()) {
+          JsonObject tokenData = res.result();
+          if (tokenData != null && !tokenData.isEmpty()) {
+              long expiresAt = tokenData.getLong("expiresAt");
+              if (System.currentTimeMillis() < expiresAt) {
+                  // Token is still valid
+                  fetchUserProfile(tokenData, ctx, tokenData.getString("accessToken"), 0);
+              } else {
+                  // Token expired, refresh it
+                  refreshAccessToken(tokenData.getString("refreshToken"), ctx);
+              }
+          } else {
+              // No token found, redirect to login
+              ctx.response()
+                  .putHeader("Location", "http://localhost:3001/profile")
+                  .setStatusCode(302)
+                  .end("No valid session found, please log in.");
+          }
+      } else {
+          ctx.response().setStatusCode(500).end("Database query failed: " + res.cause().getMessage());
+      }
+  });
+}
 
-  // private Future<JsonObject> callGoogleApi(String url){
-  //   Promise<JsonObject> promise = Promise.promise();
-  //   refreshGoogleAccessToken()
-  //       .onSuccess(accessToken -> {
-  //         WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(true));
 
-  //         webClient.getAbs(url)
-  //             .putHeader("Authorization", "Bearer " + accessToken)
-  //             .send(ar -> {
-  //               if (ar.succeeded()) {
-  //                 try{
-  //                   JsonObject responseBody = ar.result().bodyAsJsonObject();
-  //                   promise.complete(responseBody);
-  //                 }
-  //                 catch (Exception e){
-  //                   promise.fail("Error calling Google API: " + ar.result().statusCode() + " - " + ar.result().bodyAsString() + " - " + ar.cause());
-  //                 }
-  //               } else {
-  //                 promise.fail("Error calling Google API: " + ar.result().statusCode() + " - " + ar.result().bodyAsString() + " - " + ar.cause());
-  //               }
-  //             });
-  //       })
-  //       .onFailure(e -> {
-  //         logger.error(e.toString());
-  //       });
-  //   return promise.future();
-  // }
+// Step 2: Fetch or Refresh Access Token
+private void refreshAccessToken(String refreshToken, RoutingContext ctx) {
+  WebClientOptions options = new WebClientOptions().setConnectTimeout(10000); // 10 seconds timeout
+  WebClient webClient = WebClient.create(vertx, options);
+
+  MultiMap formData = MultiMap.caseInsensitiveMultiMap();
+  formData.add("client_id", "646074574769-ggemkk87qcdej7tanre38qjm20kn4f9m.apps.googleusercontent.com")
+          .add("client_secret", "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")
+          .add("refresh_token", refreshToken)
+          .add("grant_type", "refresh_token");
+
+  webClient.postAbs("https://oauth2.googleapis.com/token")
+          .putHeader("Content-Type", "application/x-www-form-urlencoded")
+          .as(BodyCodec.jsonObject())
+          .sendForm(formData, ar -> {
+              if (ar.succeeded()) {
+                  HttpResponse<JsonObject> response = ar.result();
+                  if (response.statusCode() == 200) {
+                      JsonObject responseBody = response.body();
+                      fetchUserProfile(responseBody, ctx, responseBody.getString("access_token"),2);
+                  } else {
+                      ctx.response().setStatusCode(response.statusCode()).end("Failed to refresh token: " + response.bodyAsString());
+                  }
+              } else {
+                  ctx.response().setStatusCode(500).end("Token refresh request failed: " + ar.cause().toString());
+              }
+          });
+}
+
+
+private void fetchUserProfile(RoutingContext ctx) {
+  Promise<JsonObject> promise = Promise.promise();
+  WebClient client = WebClient.create(vertx);
+
+  client.getAbs("https://www.googleapis.com/oauth2/v3/userinfo")
+      .putHeader("Authorization", "Bearer " + "ya29.a0AeDClZDetKoxSCrTmKzkirPL1ZJxocoJxp1lvnKw2YvN2O6nUzmDg4Tm3Aif3jQlaVqy37W6_zMOjP50T3q8Fge7IRLg5tUQSZ-trjppKOjNrxpJs7XphsZ9qdfWBfDe7YIxQyIa1PdLldaJjOJHAUvSr7xMSyOjlCbNp8DlaCgYKASQSARMSFQHGX2MiwVyL2Nu3HSCRAbiJ4sWOtA0175")
+     // .putHeader("Authorization", "Bearer " + accessToken)
+      .as(BodyCodec.jsonObject())
+      .send(ar -> {
+          if (ar.succeeded()) {
+              HttpResponse<JsonObject> userInfo = ar.result();
+              JsonObject responseBody = userInfo.body();
+              //updateTokenInDatabase(tokenData, ctx, userInfo,  accessToken);
+              ctx.response()
+              .putHeader("Location", "http://localhost:3001/profile?Fetchingprofile"+responseBody)
+              .setStatusCode(302)
+              .end();
+          } else {
+              ctx.response()
+            .setStatusCode(500)
+            .end("Failed to Fetch users profile " + ar.cause().getMessage());
+          }
+      });
+}
+
+ private void fetchUserProfile(JsonObject tokenData, RoutingContext ctx,String accessToken, int validity) {
+  Promise<JsonObject> promise = Promise.promise();
+  WebClient client = WebClient.create(vertx);
+
+  client.getAbs("https://www.googleapis.com/oauth2/v3/userinfo")
+      //.putHeader("Authorization", "Bearer " + "ya29.a0AeDClZC89mgtwaitFAGum2my-AWB257Q3634w8gDxN9D8ZfbKNregEKbEzwmUmCFqZAzEEDtLQHENfD2f4MJwh1Q48l2I-oH6Wtw5LdTcAnpDXQ8KmdlJf2CIUZYupDDpLuyOoVhGHtlyhNJ4Wja6-Iz0USaiB00MPDgyYyqaCgYKAYoSARMSFQHGX2MidCkb3Ec7d_Dx3ti4iGvVbQ0175")
+      .putHeader("Authorization", "Bearer " + accessToken)
+      .as(BodyCodec.jsonObject())
+      .send(ar -> {
+          if (ar.succeeded()) {
+            HttpResponse<JsonObject> userInfo = ar.result();
+            JsonObject responseBody = userInfo.body();
+            if(validity==1){
+             updateTokenInDatabase(tokenData, ctx, responseBody,  accessToken);
+            }else if(validity==2){
+              updateAccessTokenInDatabase(tokenData, ctx, responseBody,  accessToken);
+            }
+              logger.info("User's email: " + responseBody.getString("email"));
+              ctx.response()
+              .putHeader("Location", "http://localhost:3001/profile?Fetchingprofile"+responseBody.getString("email"))
+              .setStatusCode(302)
+              .end();
+          } else {
+              logger.error("Failed to fetch user profile: " + ar.cause().getMessage());
+              ctx.response()
+            .setStatusCode(500)
+            .end("Failed to Fetch users profile " + ar.cause().getMessage());
+          }
+      });
+}
+// Update or Save Token in Database
+private void updateTokenInDatabase(JsonObject tokenData, RoutingContext ctx,JsonObject userInfo, String accessToken) {
+  JsonObject document = new JsonObject()
+      .put("email", userInfo.getString("email"))
+      .put("userInfo", userInfo)
+      .put("accessToken", tokenData.getString("access_token"))
+      .put("refreshToken", tokenData.getString("refresh_token"))
+      .put("expiresIn", tokenData.getLong("expires_in"))
+      .put("expiresAt", System.currentTimeMillis() + (tokenData.getLong("expires_in") * 1000));
+
+       oauthMongoClient.save("tokens", document, res -> {
+        if (res.succeeded()) {
+            ctx.response()
+
+            .putHeader("Location", "http://localhost:3001/profile?email="+userInfo+"&accT"+tokenData.getString("access_token")+"&accesstok"+accessToken)
+            .setStatusCode(302)
+          .end();
+        } else {
+            ctx.response()
+              .setStatusCode(500)
+              .end("Failed to save token data: " + res.cause().getMessage());
+        }
+    });
+}
+
+
+private void updateAccessTokenInDatabase(JsonObject tokenData, RoutingContext ctx, JsonObject userInfo, String accessToken) {
+  JsonObject query = new JsonObject().put("email", "shikharapagadala17@gmail.com");
+  JsonObject update = new JsonObject()
+      .put("$set", new JsonObject()
+          .put("accessToken", tokenData.getString("access_token"))
+          .put("expiresIn", tokenData.getLong("expires_in"))
+          .put("expiresAt", System.currentTimeMillis() + (tokenData.getLong("expires_in") * 1000)));
+
+  oauthMongoClient.updateCollection("tokens", query, update, res -> {
+      if (res.succeeded()) {
+          ctx.response()
+              .putHeader("Content-Type", "application/json")
+              .end(new JsonObject().put("success", true).encode());
+      } else {
+          ctx.response()
+              .setStatusCode(500)
+              .end("Failed to update refresh token: " + res.cause().getMessage());
+      }
+  });
+}
+
+
 
 
   private void handleOAuthCallback(io.vertx.ext.web.RoutingContext ctx) {
@@ -1643,69 +1772,6 @@ private void trainResponseHandler(RoutingContext ctx) {
         return;
     }
     exchangeCodeForToken(code, ctx);
-  }
-//   private void saveTokenData(JsonObject tokenData) {
-//     // mongoClient.save("data_sources", dataSourceDoc, h -> {
-//     //   if (h.succeeded()){
-//     //     logger.info("saved refreshed tokens: " + accessToken);
-//     //     promise.complete(accessToken);
-//     //   }
-//     //   else{
-//     //     promise.fail("Failed to save new tokens.");
-//     //   }
-//     // });
-//     mongoClient.save("data_sources", tokenData, res -> {
-//         if (res.succeeded()) {
-//             System.out.println("Token data saved with ID: " + res.result());
-//         } else {
-//             System.err.println("Failed to save token data: " + res.cause().getMessage());
-//         }
-//     });
-// } 
-
-  private void saveTokenData(JsonObject tokenData, RoutingContext ctx) {
-    long expiresIn = Long.parseLong(tokenData.getString("expires_in")) * 1000;
-    long expiresAt = System.currentTimeMillis() + expiresIn;
-    JsonObject document = new JsonObject()
-        .put("id","1")
-        .put("accessToken", tokenData.getString("access_token"))
-        .put("refreshToken", tokenData.getString("refresh_token"))
-        .put("expiresAt", expiresAt)
-        .put("tokenType", tokenData.getString("token_type"));
-    oauthMongoClient.save("oauth_tokens", document, res -> {
-        if (res.succeeded()) {
-            ctx.response()
-              .putHeader("Location", "http://localhost:3001/profile")
-              .setStatusCode(302)
-              .end();
-        } else {
-            ctx.response()
-              .setStatusCode(500)
-              .end("Failed to save token data: " + res.cause().getMessage());
-        }
-    });
-
-
-    // // Define the query to retrieve the document with ID "1"
-    // JsonObject query = new JsonObject().put("id", "1");
-
-    // // Execute the find operation
-    // oauthMongoClient.find("oauth_tokens", query, res -> {
-    //     if (res.succeeded()) {
-    //         if (!res.result().isEmpty()) {
-    //             JsonObject token1Data = res.result().get(0);
-    //              String access_token1=token1Data.getString("accessToken");
-                 
-    //         } else {
-                
-    //         }
-    //     } else {
-    //         System.err.println("Failed to retrieve the access token: " + res.cause().getMessage());
-    //     }
-    //     mongoClient.close();
-    // });
-
-    
   }
 
   private void exchangeCodeForToken(String code, RoutingContext ctx) {
@@ -1729,43 +1795,15 @@ private void trainResponseHandler(RoutingContext ctx) {
                             String refreshToken = responseBody.getString("refresh_token");
                             String expiresIn = responseBody.getString("expires_in");
                             String tokenType = responseBody.getString("token_type");
-                           
-                            saveTokenData(response.body(), ctx);  
-                            //saveTokenData(dataSourceDoc);
 
-                             // Define the query to retrieve the document with ID "1"
-                              JsonObject query = new JsonObject().put("id", "1");
+                            fetchUserProfile( responseBody,  ctx,  responseBody.getString("access_token"),1);
 
-                              // Execute the find operation
-                              oauthMongoClient.find("oauth_tokens", query, res -> {
-                                  if (res.succeeded()) {
-                                      if (!res.result().isEmpty()) {
-                                          JsonObject token1Data = res.result().get(0);
-                                          String access_token1=token1Data.getString("accessToken");
-                                          //console.log("AccessTokem"+access_token1);
-                                          
-                                      } else {
-                                          
-                                      }
-                                  } else {
-                                      System.err.println("Failed to retrieve the access token: " + res.cause().getMessage());
-                                  }
-                                  mongoClient.close();
-                              });
-
-                            ctx.response()
-                            .putHeader("Location", "http://localhost:3001/profile?accesstoken=" + accessToken+"&refreshToken=" + refreshToken
-                            + "&expiresIn=" + expiresIn
-                            + "&tokenType=" + tokenType)
-                                .setStatusCode(302)
-                                .end();
-                          
                         } else {
                             ctx.response().setStatusCode(500).end("Failed to obtain access token: " + response.bodyAsString());
                         }
                     } else {
                         ctx.response().setStatusCode(500).end("Token exchange failed: " + ar.cause().getMessage());
-                   
+
                       }
                 });
 }
