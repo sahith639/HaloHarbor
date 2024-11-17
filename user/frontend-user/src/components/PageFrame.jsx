@@ -1,22 +1,30 @@
+// src/components/PageFrame.jsx
+
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import ThisProSidebar from './SideBar.jsx';
-import { useState, useEffect } from "react";
-import { Box } from '@mui/system'
-import { ToastContainer, toast } from 'react-toastify';
+import { Box, Button } from '@mui/material';
+import { ToastContainer } from 'react-toastify';
 
-// Frames page with sidebar on the side of the actual content.
 const PageFrame = ({ element }) => {
+  const navigate = useNavigate();
 
-  document.title = 'User Agent';
+  const handleLogout = () => {
+    localStorage.removeItem("jwt_token"); // Clear token
+    navigate("/login"); // Redirect to login
+  };
 
   return (
-    <div style={({ height: "100vh", display: "flex" })}>
-      <ThisProSidebar/>
+    <div style={{ height: "100vh", display: "flex" }}>
+      <ThisProSidebar />
       <main>
-      <Box m="5vh">
-        {element}
-        <ToastContainer></ToastContainer>
-      </Box>
+        <Box m="5vh">
+          <Button variant="outlined" color="secondary" onClick={handleLogout}>
+            Logout
+          </Button>
+          {element}
+          <ToastContainer />
+        </Box>
       </main>
     </div>
   );

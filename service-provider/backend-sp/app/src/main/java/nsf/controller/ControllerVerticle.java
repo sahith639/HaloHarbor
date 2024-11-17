@@ -87,7 +87,7 @@ public class ControllerVerticle extends AbstractVerticle {
             ctx.response()
                     .putHeader("Access-Control-Allow-Origin", "*")
                     .putHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, DELETE, PATCH, PUT")
-                    .putHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+                    .putHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, userId, X-Custom-Header, Another-Header") // Allow all necessary headers
                     .putHeader("Access-Control-Allow-Credentials", "true");
 
             if (ctx.request().method() == HttpMethod.OPTIONS) {
@@ -483,7 +483,9 @@ public class ControllerVerticle extends AbstractVerticle {
                     .put("invitationMsgId", invitationRecord.getInviMsgId())
                     .put("name", name)
                     .put("createdAt", Instant.now().getEpochSecond())
-                    .put("url", url);
+                    .put("url", url)
+                    .put("userId", ""); // Add userId field with an empty string
+
 
             mongoClient.save(INVITATIONS_COLLECTION, document, h -> {
                 if (h.succeeded()){

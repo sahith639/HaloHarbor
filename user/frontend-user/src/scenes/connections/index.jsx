@@ -14,6 +14,7 @@ import MyModalContent from '../../components/MyModalContent';
 import MyCard from '../../components/MyCard';
 import SectionCard from '../../components/SectionCard';
 import { ToastContainer, toast } from 'react-toastify';
+import { jwtDecode } from "jwt-decode";
 
 
 const ConnectionsPage = () => {
@@ -29,9 +30,24 @@ const ConnectionsPage = () => {
 
     const [detailModalOpen, setDetailModalOpen] = useState(false);
     const [detailData, setDetailData] = useState({});
+    const [userId, setUserId] = useState('');  // Store userId in the component's state
+
+    useEffect(() => {
+      // Get the JWT token from localStorage
+      const token = localStorage.getItem("jwt_token");
+
+      // If token exists, decode it to get the userId
+      if (token) {
+        const decoded = jwtDecode(token);  // Decode the JWT token
+        setUserId(decoded.sub);  // Set the userId from the decoded token
+      } else {
+        toast.error("No token found. Please log in again.");
+      }
+    }, []);
+
 
     async function updateServProvsList() {
-      const response = await axios.get(`${config.USER_CONTROLLER_BASE_URL}/service-providers`);
+      const response = await axios.get(`${config.USER_CONTROLLER_BASE_URL}/service-providers?userid=${userId}`);
       console.log("fetched serv providers list:", response.data);
       setServProvs(response.data);
     }
@@ -39,8 +55,7 @@ const ConnectionsPage = () => {
     const handleSubmit = async () => {
       const formData = new FormData();
       formData.append('invitationUrl', invitationUrl);
-
-      var response = await axios.post(`${config.USER_CONTROLLER_BASE_URL}/service-providers`, formData);
+      var response = await axios.post(`${config.USER_CONTROLLER_BASE_URL}/service-providers?userid=${userId}`, formData);
 
       // Close the modal:
       setNewInvitationModalOpen(false);

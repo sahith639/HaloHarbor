@@ -5,6 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, IconButton, Typography, useTheme } from "@mui/material";
 import SectionCard from '../../components/SectionCard';
 // import cachePull from '../../utils/cachePull'
+import { jwtDecode } from "jwt-decode";
 
 
 const Dashboard = () => {
@@ -15,6 +16,21 @@ const Dashboard = () => {
     const [checkbox0, setCheckbox0] = useState(true);
     const [checkbox1, setCheckbox1] = useState(true);
     const [checkbox2, setCheckbox2] = useState(true);
+    const [userId, setUserId] = useState('');  // Store userId in the component's state
+
+    useEffect(() => {
+      // Get the JWT token from localStorage
+      const token = localStorage.getItem("jwt_token");
+
+      // If token exists, decode it to get the userId
+      if (token) {
+        const decoded = jwtDecode(token);  // Decode the JWT token
+        setUserId(decoded.sub);  // Set the userId from the decoded token
+      } else {
+        toast.error("No token found. Please log in again.");
+      }
+    }, []);
+    
     
     const handleCheckboxChange = (checkboxName) => {
       switch (checkboxName) {
@@ -35,7 +51,7 @@ const Dashboard = () => {
         "1": checkboxName=="1"?!checkbox1:checkbox1,
         "2": checkboxName=="2"?!checkbox2:checkbox2
       };
-      var url = 'http://host.docker.internal:9080/user-settings'
+      var url = 'http://host.docker.internal:9080/user-settings?userid=${userId}'
       fetch(url, {
         method: 'POST',
         headers: {

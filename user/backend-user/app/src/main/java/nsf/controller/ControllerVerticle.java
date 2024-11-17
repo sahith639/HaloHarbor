@@ -1,4 +1,11 @@
 package nsf.controller;
+import io.vertx.core.AbstractVerticle;
+import io.vertx.ext.web.Router;
+import io.vertx.ext.web.RoutingContext;
+import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.handler.BodyHandler;
+import nsf.util.JwtUtil;
+import nsf.util.*;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -49,6 +56,8 @@ import java.util.Map;
 
 public class ControllerVerticle extends AbstractVerticle {
   private static final Logger logger = LoggerFactory.getLogger(ControllerVerticle.class);
+  private String currentUserId; // Variable to store the current user ID
+
   private static ArrayList<String> divided = new ArrayList<String>();
   // TODO DI
   private final MongoClient mongoClient;
@@ -110,7 +119,7 @@ public class ControllerVerticle extends AbstractVerticle {
         ctx.response()
               .putHeader("Access-Control-Allow-Origin", "*")
               .putHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, DELETE, PATCH, PUT")
-              .putHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+              .putHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, userId, X-Custom-Header, Another-Header") // Allow all necessary headers
               .putHeader("Access-Control-Allow-Credentials", "true");
 
         if (ctx.request().method() == HttpMethod.OPTIONS) {
@@ -121,6 +130,9 @@ public class ControllerVerticle extends AbstractVerticle {
     });
 
     // TODO Refactor split up into multiple handler files.
+
+    router.post("/auth/login").handler(this::handleLogin);
+    router.get("/api/secure-data").handler(this::authenticateJwt).handler(this::handleSecureData);
 
     router.get("/service-providers").handler(this::listServProvsHandler);
     router.get("/service-providers/:serviceProviderId").handler(this::getServProvDetailHandler);
@@ -490,6 +502,7 @@ private void trainResponseHandler(RoutingContext ctx) {
       break;
       case "COMPUTE":
             {
+              
               String filePath = "sleep_data.csv"; // Replace with your CSV file path
               FileSystem fileSystem = vertx.fileSystem();
               // Read the CSV file
@@ -1247,6 +1260,7 @@ private void trainResponseHandler(RoutingContext ctx) {
         });
   }
 
+  
   private Future<JsonObject> getServProvDetail(String servProvId) {
     return servProvService.getServProvData(servProvId)
         .compose(servProvData -> {
@@ -1386,15 +1400,94 @@ private void trainResponseHandler(RoutingContext ctx) {
       }
   }
 
-  public void listServProvsHandler(RoutingContext ctx){
-      servProvService.listServProvs().onSuccess((List<JsonObject> servProvs) -> {
-          var servProvsArray = new JsonArray(servProvs);
-          ctx.response()
-              .setStatusCode(200)
-              .putHeader(HttpHeaders.CONTENT_TYPE.toString(), "application/json")
-              .end(servProvsArray.encodePrettily());
-      });
+  private void handleLogin(RoutingContext context) {
+    JsonObject jsonBody = context.body().asJsonObject();
+    String username = jsonBody.getString("username");
+    String password = jsonBody.getString("password");
+
+    if (authenticateUser(username, password)) {
+        String accessToken = JwtUtil.generateAccessToken(username);
+
+        JsonObject responseBody = new JsonObject()
+                .put("accessToken", accessToken);
+
+        context.response()
+               .putHeader("Content-Type", "application/json")
+               .end(responseBody.encode());
+    } else {
+        context.response().setStatusCode(401).end("Invalid credentials");
+    }
   }
+
+  private boolean authenticateUser(String username, String password) {
+    // Replace this with your actual authentication logic
+    return ("user1".equals(username) && "password1".equals(password)) ||
+           ("user2".equals(username) && "password2".equals(password));
+  }
+
+
+private void authenticateJwt(RoutingContext context) {
+    String authHeader = context.request().getHeader("Authorization");
+
+    logger.info("Received Authorization Header: {}", authHeader); // Log the received header
+
+    if (authHeader != null && authHeader.startsWith("Bearer ")) {
+        String token = authHeader.substring(7);  // Remove "Bearer " prefix
+        logger.info("Extracted Token: {}", token); // Log the extracted token
+
+        if (JwtUtil.validateToken(token)) {
+          currentUserId = JwtUtil.getUserIdFromToken1(token); // Extract user ID and store it
+          context.put("userId", currentUserId); // Store userId in the context for further use
+          logger.info("User ID extracted: {}", currentUserId); // Log the extracted user ID
+          context.next();  // Proceed to the next handler
+        } else {
+            logger.warn("Invalid or expired token provided."); // Log warning for invalid token
+            context.response().setStatusCode(401).end("Invalid or expired token");
+        }
+    } else {
+        logger.warn("Authorization header is missing or invalid."); // Log warning for missing header
+        context.response().setStatusCode(401).end("Authorization header missing or invalid");
+    }
+}
+
+  private void handleSecureData(RoutingContext context) {
+    context.response().putHeader("Content-Type", "application/json")
+           .end("{\"message\":\"This is protected data.\"}");
+  }
+
+  // Fetch service providers associated with a specific user ID
+  
+
+// Handler to list service providers based on the user ID extracted from the token
+private void listServProvsHandler(RoutingContext ctx) {
+    // Extract the user ID from the JWT token
+    String userId = currentUserId; // Get the user ID from the context
+    
+    logger.info("Received request to list service providers for user ID: " + userId);
+
+    if (currentUserId == null) {
+        ctx.response()
+           .setStatusCode(401) // Unauthorized if no user ID is found
+           .end("Unauthorized: No valid token provided.");
+        return;
+    }
+
+    // Retrieve service providers associated with the user ID
+    servProvService.listServProvsByUserId(userId).onSuccess(servProvs -> {
+        var servProvsArray = new JsonArray(servProvs);
+        ctx.response()
+           .setStatusCode(200)
+           .putHeader(HttpHeaders.CONTENT_TYPE.toString(), "application/json")
+           .end(servProvsArray.encodePrettily());
+    }).onFailure(err -> {
+        ctx.response()
+           .setStatusCode(500)
+           .end("Failed to retrieve service providers: " + err.getMessage());
+    });
+}
+
+
+
 
   /**
    * Handles post request for establishing a connection to a service provider given an invitation message JSON from
@@ -1402,7 +1495,13 @@ private void trainResponseHandler(RoutingContext ctx) {
    * message, and progresses the state of the connection.
    */
   private void addServiceProviderHandler(RoutingContext ctx){
+    //String userId = JwtUtil.getUserIdFromToken(ctx); // Implement this function to extract user ID from token
+
     // Deserialize Vertx body via Gson (since ACA-Py wrapper takes Gson-serializable InvitationMessage):
+    String currentUser = ctx.request().getParam("userid"); // Get userId from query parameters
+    logger.info("Received userId from query parameter: {}", currentUser);
+
+
     String invitationMsgUrl = ctx.request().getFormAttribute("invitationUrl");
     QueryStringDecoder queryStringDecoder = new QueryStringDecoder(invitationMsgUrl);
     List<String> oobQueryParams = queryStringDecoder.parameters().get("oob");
@@ -1414,6 +1513,7 @@ private void trainResponseHandler(RoutingContext ctx) {
     String invitationJsonBase64 = oobQueryParams.get(0);
     byte[] invitationMsgBytes = Base64.getDecoder().decode(invitationJsonBase64);
     String invitationMsgJsonStr = new String(invitationMsgBytes, StandardCharsets.UTF_8);
+    String userId = currentUserId; // Get the user ID from the context
 
     Type type = new TypeToken<InvitationMessage<Object>>(){}.getType();
     InvitationMessage<Object> invitationMsg = new Gson().fromJson(invitationMsgJsonStr, type);
@@ -1437,6 +1537,7 @@ private void trainResponseHandler(RoutingContext ctx) {
             JsonObject document = new JsonObject()
                 .put("_id", connId)
                 .put("connId", connId)
+                .put("userId", userId) // Store the user ID here
                 .put("bannerData", connResponse.getJsonObject("bannerData"));
 
             if (requiresCredential){
@@ -1529,6 +1630,7 @@ private void trainResponseHandler(RoutingContext ctx) {
           ctx.response().setStatusCode(500).send(e.toString());
         });
   }
+  
 
 //  /**
 //   * REMARK: Currently access control is quite limited and does not allow fine-grain per-resource access control, as
