@@ -163,8 +163,8 @@ public final class Response extends BaseResponse {
    * Creates a builder for {@link Response Response}.
    * <pre>
    * Response.builder()
-   *    .data(Data) // optional {@link Response#data() data}
-   *    .error(Error) // optional {@link Response#error() error}
+   *    .data(nsf.controller.Data) // optional {@link Response#data() data}
+   *    .error(nsf.controller.Error) // optional {@link Response#error() error}
    *    .build();
    * </pre>
    * @return A new Response builder

@@ -21,8 +21,7 @@ import org.immutables.value.Generated;
  * Service/repository for mediating access to persistent Service Provider mappings between the controller and database.
  * "Service Provider mapping" refers to how we map custom given Service Provider IDs to corresponding ACA-Py
  * connection IDs. We may also want to store additional metadata for each service provider rather than just the
- * mapped connection ID. Currently, each singular ID to ID mapping is stored as a separate document, but feel free to
- * change this.
+ * mapped connection ID.
  */
 @Generated(from = "BaseServProvService", generator = "Immutables")
 @SuppressWarnings({"all"})
