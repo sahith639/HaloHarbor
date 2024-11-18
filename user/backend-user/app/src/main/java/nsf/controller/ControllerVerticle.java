@@ -2,6 +2,9 @@ package nsf.controller;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import io.netty.handler.codec.http.QueryStringDecoder;
 import io.vertx.core.*;
 import io.vertx.core.http.HttpHeaders;
@@ -293,49 +296,83 @@ private void trainResponseHandler(RoutingContext ctx) {
     }
   }
 
-  private static Map<String, Double> parseCsv(String csvContent) {
-    Map<String, Double> sleepDurationMap = new HashMap<>();
+  private static Map<String, List<Integer>> parseCsv(String csvContent) {
+    Map<String, List<Integer>> sentimentMap = new HashMap<>();
     String[] lines = csvContent.split("\n");
 
     for (int i = 1; i < lines.length; i += 1) {
         String[] row = lines[i].trim().split(",");
-        double value = Double.parseDouble(row[4].trim());
-        sleepDurationMap.put(row[12], value);
+
+        if (row.length > 5) {
+            try {
+                int sentimentValue = Integer.parseInt(row[5].trim());
+                String userId = row[0].trim();
+
+                List<Integer> sentiments = sentimentMap.getOrDefault(userId, new ArrayList<>());
+                sentiments.add(sentimentValue);
+                sentimentMap.put(userId, sentiments);
+            } catch (NumberFormatException e) {
+                System.err.println("Invalid sentiment value at row " + (i + 1) + ": " + row[5]);
+            }
+        } else {
+            System.err.println("Row " + (i + 1) + " does not have enough columns: " + lines[i]);
+        }
     }
 
-    return sleepDurationMap;
-  }
+    return sentimentMap;
+}
 
-  private static JsonObject calculateAverageSleepPerDisorder(Map<String, Double> sleepDurationMap) {
-      Map<String, Double> sleepPerDisorder = new HashMap<>();
-      Map<String, Integer> countPerDisorder = new HashMap<>();
+  // private static JsonObject calculateAverageSleepPerDisorder(Map<String, Double> sleepDurationMap) {
+  //     Map<String, Double> sleepPerDisorder = new HashMap<>();
+  //     Map<String, Integer> countPerDisorder = new HashMap<>();
 
-      // Calculate total sleep duration and count for each sleep disorder
-      for (Map.Entry<String, Double> entry : sleepDurationMap.entrySet()) {
-          String key = entry.getKey().toLowerCase(); // Assuming sleep disorders are case insensitive
-          double value = entry.getValue();
+  //     // Calculate total sleep duration and count for each sleep disorder
+  //     for (Map.Entry<String, Double> entry : sleepDurationMap.entrySet()) {
+  //         String key = entry.getKey().toLowerCase(); // Assuming sleep disorders are case insensitive
+  //         double value = entry.getValue();
 
-          sleepPerDisorder.put(key, sleepPerDisorder.getOrDefault(key, 0.0) + value);
-          countPerDisorder.put(key, countPerDisorder.getOrDefault(key, 0) + 1);
-      }
+  //         sleepPerDisorder.put(key, sleepPerDisorder.getOrDefault(key, 0.0) + value);
+  //         countPerDisorder.put(key, countPerDisorder.getOrDefault(key, 0) + 1);
+  //     }
 
-      // Calculate average sleep duration per sleep disorder and construct JsonObject
-      JsonObject result = new JsonObject();
-      for (Map.Entry<String, Double> entry : sleepPerDisorder.entrySet()) {
-          String key = entry.getKey();
-          double totalSleep = entry.getValue();
-          int count = countPerDisorder.get(key);
-          double averageSleep = totalSleep / count;
+  //     // Calculate average sleep duration per sleep disorder and construct JsonObject
+  //     JsonObject result = new JsonObject();
+  //     for (Map.Entry<String, Double> entry : sleepPerDisorder.entrySet()) {
+  //         String key = entry.getKey();
+  //         double totalSleep = entry.getValue();
+  //         int count = countPerDisorder.get(key);
+  //         double averageSleep = totalSleep / count;
 
-          // Add sleep disorder and average sleep duration to JsonObject
-          JsonObject disorderEntry = new JsonObject()
-                  .put("sleepDisorder", key)
-                  .put("averageSleepDuration", averageSleep);
-          result.put(key, disorderEntry);
-      }
+  //         // Add sleep disorder and average sleep duration to JsonObject
+  //         JsonObject disorderEntry = new JsonObject()
+  //                 .put("sleepDisorder", key)
+  //                 .put("averageSleepDuration", averageSleep);
+  //         result.put(key, disorderEntry);
+  //     }
 
-      return result;
-  }
+  //     return result;
+  // }
+
+  private static ObjectNode calculateAverageSentimentPerUser(Map<String, List<Integer>> userSentimentMap) {
+    ObjectMapper mapper = new ObjectMapper();
+    ObjectNode result = mapper.createObjectNode();
+    System.out.println(userSentimentMap);
+    System.out.println(result);
+    System.out.println("--------------------------------");
+
+    // Example of adding data to ObjectNode
+    for (Map.Entry<String, List<Integer>> entry : userSentimentMap.entrySet()) {
+        String userId = entry.getKey();
+        double averageSentiment = calculateAverage(entry.getValue());
+        result.put(userId, averageSentiment);
+    }
+
+    return result;
+}
+
+private static double calculateAverage(List<Integer> sentiments) {
+    return sentiments.stream().mapToInt(Integer::intValue).average().orElse(0.0);
+}
 
   HashSet<String> uniqueMessagesMap = new HashSet<>();
 
@@ -489,32 +526,39 @@ private void trainResponseHandler(RoutingContext ctx) {
       }
       break;
       case "COMPUTE":
+          
             {
-              String filePath = "sleep_data.csv"; // Replace with your CSV file path
-              FileSystem fileSystem = vertx.fileSystem();
-              // Read the CSV file
-              logger.info(System.getProperty("user.dir"));
+              JsonObject query = new JsonObject(); // Empty query to get all documents
               
-              fileSystem.readFile(filePath, result -> {
-                  if (result.succeeded()) {
-                      Buffer buffer = result.result();
-                      String csvContent = buffer.toString();
+              mongoClient.find("youtube", query, result -> {
+                if (result.succeeded()) {
+                  List<JsonObject> documents = result.result();
+                  Map<String, List<Integer>> sentimentMap = new HashMap<>();
 
-                      // Parse the CSV content into key-value pairs
-                      Map<String, Double> sleepDurationMap = parseCsv(csvContent);
+                  // Process each document from MongoDB
+                  for (JsonObject doc : documents) {
+                    try {
+                      String userId = doc.getString("User ID");
+                      int sentiment = doc.getInteger("Sentiment");
 
-                      // Calculate average sleep duration per sleep disorder
-                      JsonObject averageSleepPerDisorder = calculateAverageSleepPerDisorder(sleepDurationMap);
-                      logger.info("handler2");
-                      sendBasicMessage(connId, "COMPUTE_RESPONSE", averageSleepPerDisorder, null);
-                      // Output the result
-                      logger.info("Average Sleep Duration per Sleep Disorder:");
-
-                  } else {
-                      logger.info("Failed to read the file: " + result.cause());
+                      List<Integer> sentiments = sentimentMap.getOrDefault(userId, new ArrayList<>());
+                      sentiments.add(sentiment);
+                      sentimentMap.put(userId, sentiments);
+                    } catch (Exception e) {
+                      logger.error("Error processing document: " + e.getMessage());
+                    }
                   }
+
+                  // Calculate average sentiment per user
+                  ObjectNode averageSentimentPerUser = calculateAverageSentimentPerUser(sentimentMap);
+                  logger.info("handler2");
+                  sendBasicMessage(connId, "COMPUTE_RESPONSE", averageSentimentPerUser, null);
+                  logger.info("Average Sentiment per User:");
+
+                } else {
+                  logger.error("Failed to fetch data from MongoDB: " + result.cause().getMessage());
+                }
               });
-              
             }
             break;
     }

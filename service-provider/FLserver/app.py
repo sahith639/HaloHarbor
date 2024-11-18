@@ -150,7 +150,7 @@ def resopnse():
     data = payload['data']
     string_data = payload['value']
     print(data["client_id"],'responded')
-    logs.append(f"{data["client_id"]} responded")
+    logs.append(f"{data['client_id']} responded")
     
     updated[int(data["client_id"])] = 1
     
@@ -158,11 +158,11 @@ def resopnse():
     if payload['value'] == 'None':
       rejected.append(int(data["client_id"]))
       print(data["client_id"],'rejected training')
-      logs.append(f"{data["client_id"]} rejected training")
+      logs.append(f"{data['client_id']} rejected training")
     
     else:
 
-      with io.open(f"client_{data["client_id"]}_update.pkl", "wb") as file:
+      with io.open(f"client_{data['client_id']}_update.pkl", "wb") as file:
         # Write the string data as bytes to the file
         file.write(string_data.encode("latin1"))
 
@@ -189,7 +189,7 @@ def resopnse():
           url = 'http://localhost:9081/train'
           print(get_size_in_mb(str(pickle.dumps(loaded_data))))
           headers = {'Content-Type': ': application/json'}
-          response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':0,'epochs':3}}) 
+          response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':0,'epochs':3}}, timeout=10) 
           if response.status_code == 200:
               print("File successfully sent to API.")
           else:
