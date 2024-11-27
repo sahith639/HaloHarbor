@@ -96,7 +96,7 @@ def federated_training(global_model):
     time.sleep(2)
   with open('./global_update.pkl', 'rb') as file:
     loaded_data = pickle.load(file)
-    url = 'http://host.docker.internal:9081/train'
+    url = 'http://localhost:9081/train'
     print(get_size_in_mb(str(pickle.dumps(loaded_data))))
     headers = {'Content-Type': ': application/json'}
     response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':0,'epochs':3}}) 
@@ -186,10 +186,10 @@ def resopnse():
         logs.append(f"-- Round {rounds_counter } --")
         with open('./global_update.pkl', 'rb') as file:
           loaded_data = pickle.load(file)
-          url = 'http://host.docker.internal:9081/train'
+          url = 'http://localhost:9081/train'
           print(get_size_in_mb(str(pickle.dumps(loaded_data))))
           headers = {'Content-Type': ': application/json'}
-          response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':0,'epochs':3}}) 
+          response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':0,'epochs':3}}, timeout=10) 
           if response.status_code == 200:
               print("File successfully sent to API.")
           else:
@@ -202,7 +202,7 @@ def resopnse():
     else:
       with open('./global_update.pkl', 'rb') as file:
         loaded_data = pickle.load(file)
-        url = 'http://host.docker.internal:9081/train'
+        url = 'http://localhost:9081/train'
         print(get_size_in_mb(str(pickle.dumps(loaded_data))))
         headers = {'Content-Type': ': application/json'}
         response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':int(data["client_id"])+1,'epochs':3}}) 
