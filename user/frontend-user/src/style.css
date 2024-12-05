@@ -1,0 +1,445 @@
+body{
+  margin: 0;
+  padding: 0;
+  background-color: #181A1F;
+}
+form{
+  display: block !important;
+}
+
+.home_header{
+  display: flex;
+  color: white;
+  padding: 2vw;
+}
+.home_header .header_title{
+  display: flex;
+  width: 30%;
+  box-sizing: border-box;
+  padding-left: 5%;
+}
+.home_header .header_title h3{
+  margin-top: 8px;
+  margin-left: 17px;
+}
+.home_header .header_content{
+  width: 67%;
+}
+.home_header .header_content ul{
+  display: flex;
+}
+.home_header .header_content ul li{
+  list-style: none;
+  width: 25%;
+  font-weight: bold;
+  margin-top: -7px;
+}
+.home_header .header_content ul li button{
+  padding: 13px;
+  width: 8vw;
+  font-size: large;
+  margin-top: -14px;
+}
+
+.home_content{
+  display: flex;
+  padding: 2vw 7vw;
+}
+.home_content .home_content_title{
+ 
+}
+.home_content .home_content_title h1{
+  color: white;
+}
+.home_content .home_content_title p{
+  color: #6A7288;
+}
+.home_content .home_content_title .show_demo{
+  color: white;
+  position: relative;
+  top: -3px;
+  left: 4px;
+}
+.home_conetnt_image{
+  margin-left: 15vw;
+  margin-top: -1vw;
+}
+
+.form_box{
+  width: 40%;
+  background: white;
+  margin-left: 30%;
+  padding: 1vw;
+  box-sizing: border-box;
+  border-radius: 1rem;
+  text-align: center;
+  padding-bottom: 5vw;
+}
+.login-form-button{
+  width:50%;
+}
+.ant-form-item .ant-form-item-label > label{
+  width: 6vw;
+  font-weight: bold;
+}
+.input_text{
+  width:50%;
+  margin-left: 25%;
+  margin-bottom: 1vw !important;
+}
+.radio_text{
+  margin-left: -5vw;
+  margin-bottom: 1vw;
+}
+
+
+.dash_box{
+  padding: 2vw;
+  width: 100%;
+  box-sizing: border-box;
+  color: white;
+  padding-top: 1vw;
+}
+.button_box{
+  display: flex;
+}
+.button_box .button_left_box{
+  width: 50%;
+}
+.button_box .button_left_box .lang_button{
+  background: #262b33;
+  border: 1px solid #262b33;
+  color: white;
+  padding: 10px;
+  padding-left: 1vw;
+  border-radius: 10px;
+  width: 16vw;
+  text-align: left;
+  cursor: pointer;
+}
+.button_span_text{
+  margin: 17px;
+  position: relative;
+  top: -4px;
+}
+.button_span_text_02{
+  margin-left: 10px;
+  position: relative;
+  top: -4px;
+}
+.button_box .button_right_box{
+  width: 50%;
+  text-align: right;
+}
+.button_box .button_right_box .small_button{
+  cursor: pointer;
+  background: #262b33;
+  border: 1px solid #262b33;
+  color: white;
+  padding: 10px;
+  border-radius: 10px;
+  width: 8vw;
+  text-align: center;
+  margin-left: 1vw;
+}
+
+.dashboard_chart_box{
+  background: black;
+  height: 40vh;
+  margin-top: 4vh;
+  display: flex;
+  padding-top: 1vw;
+  box-sizing: border-box;
+}
+.dashboard_chart_box .chart{
+  width:30%;
+  margin-left: 4%;
+  height: 100%;
+}
+
+.dashboard_data_box{
+  display: flex;
+}
+.dashboard_data_box .dashboard_data_box_left_box{
+  width: 100%;
+  margin-right: 4%;
+}
+.dashboard_data_box .dashboard_data_box_right_box{
+  width: 30%;
+}
+.customTable{
+  width: 100%;
+}
+.customTable td{
+  width:16%;
+  vertical-align: middle;
+  padding-bottom: 10px;
+}
+
+
+
+
+.service_box{
+  padding: 2vw;
+  width: 100%;
+  box-sizing: border-box;
+  color: white;
+  padding-top: 1vw;
+}
+.service_box .search_box{
+
+}
+.service_box .search_box input{
+  background: #3F4652;
+  border: 1px solid #3F4652;
+  border-radius: 6px;
+  padding: 10px 8px;
+  width: 31vw;
+  color: white;
+}
+.service_box .search_box  input:focus {
+  outline: none;
+}
+
+.service_box .search_box button{
+  margin-left: 1vw;
+  border-radius: 6px;
+  padding: 10px 8px;
+  width: 6vw;
+  background: #3146FF;
+  border: 1px solid #3146FF;
+  color: white;
+  cursor: pointer;
+}
+.service_box .search_data{
+  padding: 6px 8px;
+  width: 31vw;
+  color: white;
+  background: #272C34;
+  border: 1px solid #272C34;
+  margin-top: 10px;
+}
+.service_box .search_data img{
+  vertical-align: middle;
+}
+.service_box .search_data span{
+  vertical-align: middle;
+  margin-left: 8px;
+}
+.service_data{
+  width: 100%;
+  margin:0vw 1vw;
+  margin-top: 1vw;
+
+}
+.service_box .service_data tr td{
+  padding-top: 1vw;
+  text-align: center;
+}
+.service_modal{
+  display: flex;
+}
+.service_modal .service_modal_left_box{
+  width:40%;
+  margin-right: 2%;
+  justify-content: center;
+  align-content: center;
+  align-items: center;
+  display: flex;
+}
+.service_modal .service_modal_right_box{
+  width:60%;
+}
+
+
+
+.view_box{
+  padding: 2vw;
+  width: 100%;
+  box-sizing: border-box;
+  color: white;
+  padding-top: 1vw;
+}
+.view_box .view_search_box{
+  display: flex;
+}
+.view_box .view_search_box .view_search_left_box{
+
+}
+.view_box .view_search_box .view_search_right_box{
+  margin-left: 12vw;
+  display: flex;
+}
+.view_box .table_view{
+  margin-top: 2vh;
+}
+
+
+
+.account_box{
+  padding: 2vw;
+  width: 100%;
+  box-sizing: border-box;
+  color: white;
+  padding-top: 1vw;
+}
+.account_03_row{
+  display: flex;
+}
+.account_03_row .account_cloumn{
+  width:33%;
+  margin-right: 1%;
+}
+.account_03_row .account_cloumn .account_total{
+  height: 18vh;
+  background-image: linear-gradient(90deg,orange, rgb(255, 68, 0));
+  border-radius: 1rem;
+  padding: 2px 2vw;
+  box-sizing: border-box;
+}
+.account_03_row .account_cloumn .account_total h3{
+  font-size: x-large;
+}
+.account_03_row .account_cloumn .account_source{
+  background-color: #151B37;
+  height: 32vh;
+  border-radius: 1rem;
+  margin-top: 2vh;
+  color: white;
+  padding: 10px;
+  box-sizing: border-box;
+}
+ .account_03_row .account_cloumn .account_spendings{
+  background-color: #151B37;
+  height: 25vh;
+  border-radius: 1rem;
+  color: white;
+  padding: 10px;
+  box-sizing: border-box;
+}
+ .account_03_row .account_cloumn .account_income{
+  background-color: #151B37;
+  height: 25vh;
+  border-radius: 1rem;
+  color: white;
+  margin-top: 2vh;
+  padding: 10px;
+  box-sizing: border-box;
+}
+.account_03_row .account_cloumn .account_assets{
+  background-color: #151B37;
+  height: 50vh;
+  border-radius: 1rem;
+  color: white;
+  padding: 10px;
+  box-sizing: border-box;
+}
+.account_03_row .account_cloumn2 .account_expenses{
+  background-color: #151B37;
+  height: 50vh;
+  border-radius: 1rem;
+  color: white;
+  padding: 10px;
+  box-sizing: border-box;
+}
+.account_03_row .account_cloumn2{
+  width:33%;
+  margin-right: 1%;
+}
+.account_notifation_img{
+  text-align: right;
+}
+
+
+
+.upload_box{
+  padding: 2vw;
+  width: 100%;
+  box-sizing: border-box;
+  color: white;
+  padding-top: 1vw;
+}
+.upload_box .button_box{
+  display: flex;
+  justify-content: right;
+}
+.upload_box ul {
+  padding: 0vw;
+}
+.upload_box ul li{
+  list-style: none;
+}
+.upload_box ul li .button{
+  margin-left: 2vw;
+  margin-top: 1vw;
+  padding: 8px;
+  border-radius: 1rem;
+  cursor: pointer;
+}
+.upload_box .hr{
+  margin: 2vw 0vw;
+}
+.upload_box .upload_border_box{
+  border: 1px dashed antiquewhite;
+  border-radius: 1rem;
+  padding: 6vw 2vw;
+  text-align: center;
+}
+.upload_box .upload_add_more_box{
+  border-bottom: 1px solid white;
+  border-top: 1px solid white;
+  padding: 2vw 0vw;
+  margin: 3vw 0vw;
+  color: #666469;
+}
+.upload_box .upload_comment_box{
+  padding-bottom: 5vh;
+}
+.upload_box .upload_comment_box img{
+  vertical-align: middle;
+  background: #9fb3f7;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  margin-right: 1vw;
+}
+.upload_box .upload_comment_box input{
+  padding: 6px;
+  width: 40vw;
+  border-radius: 10px;
+}
+
+.word_row{
+  display: flex;
+  background: #f7ebf2;
+  color: black;
+  padding: 1vw 2vw;
+  border-radius: 1rem;
+}
+.word_row .button_bfb{
+  color: #f4316c;
+  border: 1px solid #f4316c;
+  width: 30%;
+  border-radius: 1rem;
+  padding: 6px 9px;
+}
+.word_row .button_bfb svg{  
+  vertical-align: middle;
+}
+.word_row .button_bfb span{
+  margin-left: 9px;
+}
+.word_row .word_column{
+  width: 70%;
+}
+
+.training_box{
+  margin: 4vw;
+  height: 40vh;
+  justify-content: center;
+  align-content: center;
+  text-align: center;
+}
+.training_box .training_select{
+  width: 400px;
+}
