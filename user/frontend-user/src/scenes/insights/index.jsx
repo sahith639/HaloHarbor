@@ -26,13 +26,13 @@ const Insights = () => {
       <div>
       <Header></Header>
       <SectionCard>
-        <Typography variant="h3" sx={{ color: "#000000"}}>
+        <h3 style={{color:'#fff'}}>
           My Insights
-        </Typography>
-        <Typography variant="h5" sx={{ padding: "20px 30px 0 5px", color: "#000000"}}>
+        </h3>
+        <h5 style={{color:'#fff'}}>
           Text here
           TODO have data menu where users can pull their own data (rather than a service provider) for personal insights.
-        </Typography>
+          </h5>
       </SectionCard>
       </div>
     );

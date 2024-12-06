@@ -443,3 +443,13 @@ form{
 .training_box .training_select{
   width: 400px;
 }
+
+.css-tl6u47 {
+  grid-column: span 16;
+  grid-row: span 2;
+  background-color: #181A1F!important;
+  border-radius: 16px;
+  box-shadow: 2px;
+  margin-bottom: 20px;
+  color:#fff !important;
+}

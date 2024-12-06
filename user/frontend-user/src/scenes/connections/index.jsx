@@ -83,18 +83,17 @@ const ConnectionsPage = () => {
     }, []);
 
     return (
-      <div style={{display:'block'}}>
+      <div style={{display:'block', backgroundColor:'#181A1F'}}>
       <Header></Header>
-     
-            <SectionCard>
-              <Typography variant="h3" sx={{ color: "#000000"}}>
-                Connected Service Providers
-              </Typography>
+    
+          <div style={{backgroundColor:"#181A1F"}}></div>
+            <SectionCard style={{backgroundColor:"#181A1F"}}>
+              <h3 style={{color:'#fff'}}>Connected Service Providers</h3><br></br>
               {/* {servProvs.map(servProv => (
                 <li key={servProv._id}>{servProv.connId}</li>
               ))} */}
               
-              <div style={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'column' }}>
+              <div style={{ display: 'flex',backgroundColor:'#181A1F', flexWrap: 'wrap', flexDirection: 'column' }}>
               {servProvs.map(item => {
                   return (
                     <MyCard key={item._id} onClick={() => { setDetailData(item); setDetailModalOpen(true) }} style={{cursor: 'pointer'}}>

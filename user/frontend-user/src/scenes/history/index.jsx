@@ -103,11 +103,39 @@ const HistoryPage = () => {
       <Header></Header>
      
         <SectionCard>
-          <Typography variant="h3" sx={{ color: "#000000"}}>
+        <h3 style={{color:'#fff'}}>
             Shared Data / Activity
-          </Typography>
+          </h3>
           
-          <Box sx={{ height: '500px', width: '800px', maxWidth: 1500 }}>
+          <Box sx={{
+    height: '500px',
+    width: '800px',
+    maxWidth: 1500,
+    '& .MuiDataGrid-root': {
+      backgroundColor: '#ffffff', // Table rows background
+      color: '#000000', // Table text color
+      border: '1px solid #ccc',
+    },
+    '& .MuiDataGrid-columnHeaders': {
+      backgroundColor: '#f5f5f5', // Header background
+      color: '#000', // Header text color
+      fontSize: '16px', // Header font size
+      fontWeight: 'bold', // Optional: bold header
+    },
+    '& .MuiDataGrid-footerContainer': {
+      backgroundColor: '#f5f5f5', // Footer background (pagination)
+      color: '#000', // Footer text color
+    },
+    '& .MuiDataGrid-row': {
+      backgroundColor: '#ffffff', // Row background color
+    },
+    '& .MuiDataGrid-row:hover': {
+      backgroundColor: '#f0f0f0', // Row hover effect
+    },
+    '& .MuiDataGrid-cell': {
+      color: '#000000', // Cell text color
+    },
+  }}>
             <DataGrid 
             rows={rows} 
             columns={columns}
