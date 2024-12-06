@@ -17,14 +17,14 @@ const PageFrame = ({ element }) => {
   return (
     <div style={{ height: "100vh", display: "flex" }}>
       <ThisProSidebar />
-      <main>
-        <Box m="5vh">
+      <main style={{flex: "1", display: "flex", flexDirection: "column"}}>
+        {/* <Box m="5vh">
           <Button variant="outlined" color="secondary" onClick={handleLogout}>
             Logout
-          </Button>
+          </Button> */}
           {element}
-          <ToastContainer />
-        </Box>
+          {/* <ToastContainer />
+        </Box> */}
       </main>
     </div>
   );

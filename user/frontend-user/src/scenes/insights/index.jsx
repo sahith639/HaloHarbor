@@ -5,7 +5,7 @@ import { useNavigate } from 'react-router-dom'
 import { Button, IconButton, Typography, useTheme } from "@mui/material";
 import SectionCard from '../../components/SectionCard';
 // import cachePull from '../../utils/cachePull'
-
+import Header from '../../commpont/Header';
 
 const Insights = () => {
     const theme = useTheme();
@@ -23,6 +23,8 @@ const Insights = () => {
     // }, [dispatch, navigate]);
 
     return (
+      <div>
+      <Header></Header>
       <SectionCard>
         <Typography variant="h3" sx={{ color: "#000000"}}>
           My Insights
@@ -32,6 +34,7 @@ const Insights = () => {
           TODO have data menu where users can pull their own data (rather than a service provider) for personal insights.
         </Typography>
       </SectionCard>
+      </div>
     );
 }
 

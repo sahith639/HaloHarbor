@@ -6,6 +6,8 @@ import { Button, IconButton, Typography, useTheme } from "@mui/material";
 import SectionCard from '../../components/SectionCard';
 // import cachePull from '../../utils/cachePull'
 import { jwtDecode } from "jwt-decode";
+import Header from '../../commpont/Header';
+
 
 
 const Dashboard = () => {
@@ -74,7 +76,10 @@ const Dashboard = () => {
     };
 
     return (
-      <SectionCard>
+      <div style={{"display":"flex"}}>
+      <div>
+        <Header></Header>
+        <SectionCard>
         <Typography variant="h3" sx={{ color: "#000000"}}>
           Dashboard
         </Typography>
@@ -89,7 +94,7 @@ const Dashboard = () => {
                 checked={checkbox0}
                 onChange={() => handleCheckboxChange('0')}
               />
-              0
+              
             </label>
             <br />
             <label>
@@ -113,6 +118,8 @@ const Dashboard = () => {
           </div>
         </Typography>
       </SectionCard>
+      </div>
+      </div>
     );
 }
 

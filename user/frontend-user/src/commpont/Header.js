@@ -2,6 +2,9 @@ import React, { useState,useEffect, useMemo } from "react";
 import { Form, Input, Button,Checkbox,Alert,Menu,notification,List, Avatar } from 'antd';
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import '../menu.css';
+import { Box } from '@mui/material';
+import { ToastContainer } from 'react-toastify';
+
 
 function Header() {
     const { SubMenu } = Menu;
@@ -11,7 +14,11 @@ function Header() {
     const [name,setname]=useState("");
 
   
-
+    const handleLogout = () => {
+      localStorage.removeItem("jwt_token"); // Clear token
+      navigate("/login"); // Redirect to login
+    };
+  
 
 
     return(
@@ -35,6 +42,17 @@ function Header() {
             <li className="me">
               <img width={23} height={23} src='./icon4.png'></img>
             </li>
+            <li>
+           
+        
+          <Button variant="outlined" color="secondary" onClick={handleLogout}>
+            Logout
+          </Button>
+         
+          <ToastContainer />
+        
+            </li>
+            
       </div>
     )
 }

@@ -12,6 +12,7 @@ import config from '../../utils/config'
 import BCGovCredentialDetailModal from '../../components/BCGovCredentialDetailModal';
 import { DataGrid } from "@mui/x-data-grid";
 import { jwtDecode } from "jwt-decode";
+import Header from '../../commpont/Header';
 
 
 
@@ -98,7 +99,9 @@ const HistoryPage = () => {
     
 
     return (
-      <div>
+      <div style={{display:'block'}}>
+      <Header></Header>
+     
         <SectionCard>
           <Typography variant="h3" sx={{ color: "#000000"}}>
             Shared Data / Activity

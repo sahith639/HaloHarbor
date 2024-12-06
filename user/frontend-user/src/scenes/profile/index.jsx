@@ -12,7 +12,7 @@ import config from '../../utils/config'
 import BCGovCredentialDetailModal from '../../components/BCGovCredentialDetailModal';
 import { ToastContainer, toast } from 'react-toastify';
 import ExampleDataIntegrateModal from '../../components/ExampleDataIntegrateModal';
-
+import Header from '../../commpont/Header';
 
 const Profile = () => {
     const theme = useTheme();
@@ -73,7 +73,11 @@ const Profile = () => {
     }, []);
 
     return (
+
+      
       <div>
+        <Header></Header>
+       
         <SectionCard>
           <Typography variant="h3" sx={{ color: "#000000"}}>
             Data Source Integrations
@@ -122,6 +126,7 @@ const Profile = () => {
         <ObtainBCGovCredentialModal isOpen={bcGovCredentialModalOpen} onClose={() => setBcGovCredentialModalOpen(false)} onListingUpdate={updateCredentials} setCretModalOpen={() => setBcGovCredentialDetailModalOpen(true)} />
         <BCGovCredentialDetailModal isOpen={bcGovCredentialDetailModalOpen} onClose={() => setBcGovCredentialDetailModalOpen(false)} onListingUpdate={updateCredentials} />
       </div>
+    
     );
 }
 
