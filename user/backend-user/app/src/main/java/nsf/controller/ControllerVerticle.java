@@ -36,6 +36,7 @@ import io.vertx.ext.web.FileUpload;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.DecodeException;
 import java.io.IOException;
+import java.io.StringReader;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -47,6 +48,22 @@ import io.vertx.core.file.FileSystem;
 import java.util.HashMap;
 import java.util.Map;
 import io.vertx.ext.web.client.HttpResponse;
+import edu.stanford.nlp.pipeline.*;
+import edu.stanford.nlp.ling.*;
+import edu.stanford.nlp.sentiment.SentimentCoreAnnotations;
+import edu.stanford.nlp.pipeline.Annotation;
+import edu.stanford.nlp.pipeline.StanfordCoreNLP;
+import edu.stanford.nlp.util.CoreMap;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.Reader;
+import java.io.FileReader;
+import java.util.stream.Collectors;
+
+
 
 public class ControllerVerticle extends AbstractVerticle {
   private static final Logger logger = LoggerFactory.getLogger(ControllerVerticle.class);
@@ -61,6 +78,8 @@ public class ControllerVerticle extends AbstractVerticle {
   private MongoClient oauthMongoClient;
   private MongoClient locationMongoClient;
   private ConcurrentHashMap<String, ConcurrentHashMap<Integer, String>> dataParts = new ConcurrentHashMap<>();
+  private String accesstok;
+  private String reftoken;
 
 
   /**
@@ -112,11 +131,7 @@ public class ControllerVerticle extends AbstractVerticle {
 //Testing the mongodbConnection
   oauthMongoClient = MongoClient.createShared(vertx, new JsonObject()
         .put("connection_string", "mongodb://localhost:37017/oauthDatabase"));
-
-
-
-    router.route().handler(BodyHandler.create());
-
+    router.route().handler(BodyHandler.create().setHandleFileUploads(true));
     router.route().handler(ctx -> {
         ctx.response()
               .putHeader("Access-Control-Allow-Origin", "*")
@@ -130,6 +145,7 @@ public class ControllerVerticle extends AbstractVerticle {
             ctx.next();
         }
     });
+
 
     // TODO Refactor split up into multiple handler files.
 
@@ -146,12 +162,14 @@ public class ControllerVerticle extends AbstractVerticle {
 // Initialize OAuth routes
   // router.get("/auth/google/initiate").handler(this::initiateOAuth);
   // router.get("/auth/google/xlab").handler(this::attemptFetchProfile);
-
+  // Initialize OAuth routes
   router.get("/auth/google/initiate").handler(this::initiateOAuth);
   router.get("/auth/google/xlab").handler(this::handleOAuthCallback);
   
   
   router.get("/auth/fetchProfile").handler(this::attemptFetchProfile);
+    //    router.put("/access/:serviceProviderId").handler(this::setServiceProviderAccessControl);
+   
 
 // router.get("/fetch/emails").handler(this::fetchEmails);
     router.get("/credentials").handler(this::listCredentials);
@@ -177,6 +195,8 @@ public class ControllerVerticle extends AbstractVerticle {
     router.post("/webhook/topic/out_of_band").handler(this::outOfBandHandler);
     router.post("/webhook/topic/basicmessages").handler(this::basicMessageHandler);
     router.post("/api/location").handler(this::handleLocationPost);
+    router.post("/api/yt").handler(this::getYTData);
+
     userSettings = new JsonObject().put("0",true).put("1",true).put("2",true);
     int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9080"));
     vertx.createHttpServer()
@@ -189,6 +209,327 @@ public class ControllerVerticle extends AbstractVerticle {
         })
         .onFailure(promise::fail);
   }
+
+  // would be useful in future if there's a plan to include third party data providers
+  // private void getWatchHistory(RoutingContext ctx)
+  // {
+  //   WebClient webClient = WebClient.create(vertx);
+  //   String url = "https://www.googleapis.com/youtube/v3/activities";
+  //   webClient.getAbs(url)
+  //           .addQueryParam("part", "snippet,contentDetails")
+  //           .addQueryParam("mine", "true")
+  //           .addQueryParam("maxResults", "10") // Limit the results
+  //           .putHeader("Authorization", "Bearer " + accesstok)
+  //           .as(BodyCodec.jsonObject())
+  //           .send(ar -> {
+  //               if (ar.succeeded()) {
+  //                   // Successful response
+  //                   JsonObject response = ar.result().body();
+  //                   io.vertx.core.json.JsonArray items = response.getJsonArray("items");
+  //                   ArrayList<WatchHistoryData> watchHistoryList = new ArrayList<>();
+  //                   for (int i = 0; i < items.size(); i++) {
+  //                     JsonObject item = items.getJsonObject(i);
+  //                     JsonObject snippet = item.getJsonObject("snippet");
+  //                     String title = snippet.getString("title", "No Title");
+  //                     String description = snippet.getString("description", "No Description");
+
+  //                     // Creating WatchHistoryData object and adding it to the list
+  //                     watchHistoryList.add(new WatchHistoryData(title, description));
+  //                   }
+  //                   for (WatchHistoryData data : watchHistoryList) {
+  //                     logger.info(data.toString());
+  //                   }
+  //                   //ctx.response().putHeader("Location", "http://localhost:3001/profile?accesstoken=" + accesstok +"&refreshToken=" + reftoken).setStatusCode(302).end();
+  //               } else {
+  //                   // Handle failure (could be token expiration, network issues, etc.)
+  //                   logger.error("Failed to fetch watch history: " + ar.cause().getMessage());
+  //                   //ctx.response().setStatusCode(500).end("Fetching yt data failed: " + ar.cause().getMessage());
+  //               }
+  //           });
+  // }
+ 
+  // private void getLikes(RoutingContext ctx)
+  // {
+  //   WebClient webClient = WebClient.create(vertx);
+  //   String url = "https://www.googleapis.com/youtube/v3/videos";
+  //   webClient.getAbs(url)
+  //           .addQueryParam("part", "snippet,contentDetails")
+  //           .addQueryParam("myRating", "like")
+  //           .addQueryParam("maxResults", "10") // Limit the results
+  //           .putHeader("Authorization", "Bearer " + accesstok)
+  //           .as(BodyCodec.jsonObject())
+  //           .send(ar -> {
+  //               if (ar.succeeded()) {
+  //                   // Successful response
+  //                   JsonObject response = ar.result().body();
+  //                   io.vertx.core.json.JsonArray items = response.getJsonArray("items");
+  //                   ArrayList<LikesData> likesList = new ArrayList<>();
+  //                   for (int i = 0; i < items.size(); i++) {
+  //                     JsonObject item = items.getJsonObject(i);
+  //                     JsonObject snippet = item.getJsonObject("snippet");
+  //                     String title = snippet.getString("title", "No Title");
+  //                     String description = snippet.getString("description", "No Description");
+  //                     String channelTitle = snippet.getString("channelTitle", "No Channel Title");
+  //                     JsonObject contentDetails = item.getJsonObject("contentDetails");
+  //                     String duration = contentDetails.getString("duration", "No Duration");
+
+  //                     // Creating SubsData object and adding it to the list
+  //                     likesList.add(new LikesData(title, description, channelTitle,duration));
+  //                   }
+  //                   for (LikesData data : likesList) {
+  //                     logger.info(data.toString());
+  //                   }
+  //                   getVideo("sdfdsfsd");
+                    
+  //                   //ctx.response().putHeader("Location", "http://localhost:3001/profile?accesstoken=" + accesstok +"&refreshToken=" + reftoken).setStatusCode(302).end();
+  //               } else {
+  //                   // Handle failure (could be token expiration, network issues, etc.)
+  //                   logger.error("Failed to fetch watch history: " + ar.cause().getMessage());
+  //                   //ctx.response().setStatusCode(500).end("Fetching yt data failed: " + ar.cause().getMessage());
+  //               }
+  //           });
+  // }
+  // private void getYTData1(RoutingContext context){
+  //   Buffer uploadedFile = context.getBody();
+  //   logger.info("Headers2323: "+ context.fileUploads().toString());
+  //   logger.info("Headers: " + context.request().headers());
+  //   logger.info("Context : " + context.getBodyAsString());
+  //   if (uploadedFile == null || uploadedFile.length() == 0) {
+  //     context.response().setStatusCode(400).end("File is missing or empty");
+  //     logger.info("Here byt error 1");
+  //   }
+  
+  //   try {
+      
+  //           String csvContent = uploadedFile.toString();
+  //           CSVParser csvParser = CSVFormat.DEFAULT.withHeader().parse(new StringReader(csvContent));
+  //           ArrayList<CommentsData> commentsList = new ArrayList<>();
+  //           logger.info("Here byt error 2");
+  //           for (CSVRecord record : csvParser) {
+              
+  //             String videoId = record.get("Video ID");
+  //             String comment = record.get("Comment Text");
+
+  //             CommentsData data = getVideo(videoId);
+  //             data.comment = extractCommentText(comment);
+  //             logger.info("Here byt error 3");
+  //             data.sentiment = sentimentAnalysis(data.comment);
+  //             logger.info("Here byt error 4");
+
+  //           }
+  //           context.response().setStatusCode(200).end("File processed successfully!");
+
+  //       } catch (Exception e) {
+  //           e.printStackTrace();
+  //           context.response().setStatusCode(500).end("Failed to process file.");
+  //       }
+  //   }
+  
+  
+  private void getYTData(RoutingContext context){
+    logger.info("Headers: " + context.request().headers());
+    logger.info("Context : " + context.getBodyAsString());
+    if (context.fileUploads().isEmpty()) {
+            logger.info("Error: No files uploaded!");
+            context.response().setStatusCode(400).end("No files uploaded!");
+            return;
+      }
+    context.fileUploads().forEach(fileUpload -> {
+            logger.info("Uploaded file: " + fileUpload.fileName());
+            logger.info("Temporary file location: " + fileUpload.uploadedFileName());
+            try {
+                // Parse the CSV file from its temporary location
+                Buffer fileBuffer = context.vertx().fileSystem().readFileBlocking(fileUpload.uploadedFileName());
+                String fileContent = fileBuffer.toString();
+
+                CSVParser csvParser = CSVFormat.DEFAULT
+                        .withHeader() // Use the first row as headers
+                        .withIgnoreHeaderCase() // Ignore case in headers
+                        .withTrim() // Trim whitespaces
+                        .parse(new StringReader(fileContent) );
+
+                // Process CSV records
+                //List<CommentsData> commentsList = new ArrayList<>();
+                 List<Future> futures = new ArrayList<>();
+                logger.info("Starting to process CSV records...");
+                for (CSVRecord record : csvParser) {
+                    String videoId = record.get("Video ID");
+                    String commentText = record.get("Comment Text");
+                    logger.info("Processed id,comment");
+
+                    Future<CommentsData> future = getVideo(videoId).map(data -> {
+                    data.comment = extractCommentText(commentText);
+                    logger.info("Comment : "+data.comment);
+                    data.sentiment = sentimentAnalysis(data.comment);
+                    logger.info("Sentiment : "+ data.sentiment);
+                    return data;
+                });
+
+                futures.add(future);
+                }
+
+                mongoClient.removeDocuments("youtube", new JsonObject(), clearAr -> {
+
+                  if (clearAr.succeeded()) {
+                    logger.info("Cleared existing data in the 'comments' collection.");
+                  CompositeFuture.all(futures).onComplete(ar -> {
+                      // Collect only successfully processed results
+                      List<CommentsData> successfulResults = futures.stream()
+                              .filter(Future::succeeded) // Only include succeeded futures
+                              .map(f -> (CommentsData) ((Future) f).result()) // Map to CommentsData
+                              .collect(Collectors.toList());
+
+                      // Log failures for debugging
+                      futures.stream()
+                              .filter(Future::failed) // Only include failed futures
+                              .forEach(f -> logger.info("Failed to process record: " + f.cause().getMessage()));
+
+                      successfulResults.forEach(data -> {
+                                JsonObject document = new JsonObject()
+                                        .put("User ID", 1)
+                                        .put("Title of Video", data.title)
+                                        .put("Description of Video", data.description)
+                                        .put("Category ID", data.categoryId)
+                                        .put("Comment", data.comment)
+                                        .put("Sentiment", data.sentiment);
+
+                                mongoClient.insert("youtube", document, saveAr -> {
+                                    if (saveAr.succeeded()) {
+                                        logger.info("Successfully saved record for Video : " + data.title);
+                                    } else {
+                                        logger.error("Failed to save record for Video ID: " + data.title, saveAr.cause());
+                                    }
+                                });
+                            });
+
+
+                      // Respond with successful results
+                      context.response()
+                              .setStatusCode(200)
+                              .end("File processed successfully! Processed " + successfulResults.size() + " valid records.");
+                  });
+                  }
+                  else {
+                    logger.error("Failed to clear the 'comments' collection: " + clearAr.cause().getMessage());
+                    context.response().setStatusCode(500).end("Failed to clear existing data in MongoDB.");
+                }
+                });
+
+
+                // Respond with success
+                // logger.info("Successfully processed {} records", commentsList.size());
+                // context.response().setStatusCode(200).end("File processed successfully! Processed " + commentsList.size() + " records.");
+
+            } catch (Exception e) {
+                // Handle errors during parsing or processing
+                logger.error("Failed to process CSV file: {}", e.getMessage(), e);
+                context.response().setStatusCode(500).end("Failed to process file.");
+            }
+
+    });
+  }
+  private Future<CommentsData> getVideo(String videoId)
+  {
+    Promise<CommentsData> promise = Promise.promise();
+    WebClient webClient = WebClient.create(vertx);
+    String url = "https://www.googleapis.com/youtube/v3/videos";
+    CommentsData[] cData= new CommentsData[1];
+    webClient.getAbs(url)
+            .addQueryParam("part", "snippet,contentDetails")
+            .addQueryParam("id", videoId)// get the specific video
+            .putHeader("Authorization", "Bearer " + accesstok)
+            .as(BodyCodec.jsonObject())
+            .send(ar -> {
+                if (ar.succeeded()) {
+                  try{
+                    JsonObject response = ar.result().body();
+                    io.vertx.core.json.JsonArray items = response.getJsonArray("items");
+                    if (items == null || items.isEmpty()) {
+                        promise.fail("No video data found for Video ID: " + videoId);
+                        return;
+                    }
+                    JsonObject item = items.getJsonObject(0);
+
+                    JsonObject snippet = item.getJsonObject("snippet");
+                    String title = snippet.getString("title", "No Title");
+                    String description = snippet.getString("description", "No Description");
+                    String categoryId = snippet.getString("categoryId", "N/A");
+
+                    JsonObject contentDetails = item.getJsonObject("contentDetails");
+                    String duration = contentDetails.getString("duration", "No Duration");
+                    CommentsData data =  new CommentsData(title, description, categoryId,duration);
+                    promise.complete(data);
+                  }
+                  catch (Exception e) {
+                    // Handle any parsing errors
+                    promise.fail("Failed to parse video details: " + e.getMessage());
+                }
+                  
+                    //ctx.response().putHeader("Location", "http://localhost:3001/profile?accesstoken=" + accesstok +"&refreshToken=" + reftoken).setStatusCode(302).end();
+                } 
+                else {
+                    // Handle failure (could be token expiration, network issues, etc.)
+                    promise.fail("Failed to fetch video data: " + ar.cause().getMessage());
+                    //ctx.response().setStatusCode(500).end("Fetching yt data failed: " + ar.cause().getMessage());
+                }
+                
+            });
+            return promise.future();
+  }
+  // extract comment from the comment tree we get from csv file
+  private String extractCommentText(String jsonString) {
+        try {
+            // Parse the JSON string using ObjectMapper
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode rootNode = objectMapper.readTree(jsonString);
+            JsonNode textNode = rootNode.path("text");
+
+            return textNode.asText();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "";
+        }
+    }
+
+  //performing sentiment analysis and categorizing the comment
+  private String sentimentAnalysis(String text) {
+    if (text == null || text.isEmpty()) return "Neutral";
+
+    // Set up Stanford CoreNLP pipeline
+    Properties props = new Properties();
+    props.setProperty("annotators", "tokenize, ssplit, parse, sentiment");
+    StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
+    Annotation annotation = new Annotation(text);
+    pipeline.annotate(annotation);
+
+    // Analyze sentiment for each sentence
+    List<CoreMap> sentences = annotation.get(CoreAnnotations.SentencesAnnotation.class);
+    int totalSentimentScore = 0;
+    int sentenceCount = 0;
+
+    for (CoreMap sentence : sentences) {
+        String sentiment = sentence.get(SentimentCoreAnnotations.SentimentClass.class);
+
+        // Map sentiment to numerical score
+        int sentimentScore = sentiment.equalsIgnoreCase("Very positive") ? 2
+                          : sentiment.equalsIgnoreCase("Positive") ? 1
+                          : sentiment.equalsIgnoreCase("Neutral") ? 0
+                          : sentiment.equalsIgnoreCase("Negative") ? -1
+                          : sentiment.equalsIgnoreCase("Very negative") ? -2
+                          : 0;
+
+        totalSentimentScore += sentimentScore;
+        sentenceCount++;
+    }
+
+    // Calculate average sentiment score
+    double averageSentimentScore = (double) totalSentimentScore / sentenceCount;
+
+    // Map average score to sentiment category
+    if (averageSentimentScore > 0) return "Positive";
+    if (averageSentimentScore == 0) return "Neutral";
+    return "Negative";
+}
 
   private void handleLocationPost(RoutingContext context) {
     JsonObject json = context.getBodyAsJson();
@@ -230,9 +571,9 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
 
   private void initiateOAuth(io.vertx.ext.web.RoutingContext ctx) {
     String authorizationUri = "https://accounts.google.com/o/oauth2/auth?" +
-            "client_id=646074574769-ggemkk87qcdej7tanre38qjm20kn4f9m.apps.googleusercontent.com&" +
+            "client_id=821706558807-q9aj30q47rqjb2876isgcjk68jsii830.apps.googleusercontent.com&" +
             "response_type=code&" +
-            "scope=https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile&" +
+            "scope=https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/youtube&" +
             "redirect_uri=http://localhost:9080/auth/google/xlab&" +
             "access_type=offline&prompt=consent";
     ctx.response().putHeader("Location", authorizationUri).setStatusCode(302).end();
@@ -1762,9 +2103,6 @@ private void updateAccessTokenInDatabase(JsonObject tokenData, RoutingContext ct
   });
 }
 
-
-
-
   private void handleOAuthCallback(io.vertx.ext.web.RoutingContext ctx) {
     String code = ctx.request().getParam("code");
     if (code == null) {
@@ -1777,8 +2115,8 @@ private void updateAccessTokenInDatabase(JsonObject tokenData, RoutingContext ct
   private void exchangeCodeForToken(String code, RoutingContext ctx) {
     WebClient webClient = WebClient.create(vertx);
     MultiMap formData = MultiMap.caseInsensitiveMultiMap();
-            formData.add("client_id", "646074574769-ggemkk87qcdej7tanre38qjm20kn4f9m.apps.googleusercontent.com");
-            formData.add("client_secret", "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");
+            formData.add("client_id", "821706558807-q9aj30q47rqjb2876isgcjk68jsii830.apps.googleusercontent.com");
+            formData.add("client_secret", "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");
             formData.add("code", code);
             formData.add("grant_type", "authorization_code");
             formData.add("redirect_uri", "http://localhost:9080/auth/google/xlab");
@@ -1798,6 +2136,39 @@ private void updateAccessTokenInDatabase(JsonObject tokenData, RoutingContext ct
 
                             fetchUserProfile( responseBody,  ctx,  responseBody.getString("access_token"),1);
 
+                            accesstok = accessToken;
+                            reftoken = refreshToken;
+                           
+                            //saveTokenData(response.body(), ctx);  
+                            //saveTokenData(dataSourceDoc);
+
+                             // Define the query to retrieve the document with ID "1"
+                              JsonObject query = new JsonObject().put("id", "1");
+
+                              // Execute the find operation
+                              oauthMongoClient.find("oauth_tokens", query, res -> {
+                                  if (res.succeeded()) {
+                                      if (!res.result().isEmpty()) {
+                                          JsonObject token1Data = res.result().get(0);
+                                          String access_token1=token1Data.getString("accessToken");
+                                          //console.log("AccessTokem"+access_token1);
+                                          
+                                      } else {
+                                          
+                                      }
+                                  } else {
+                                      System.err.println("Failed to retrieve the access token: " + res.cause().getMessage());
+                                  }
+                                  mongoClient.close();
+                              });
+
+                            ctx.response()
+                            .putHeader("Location", "http://localhost:3001/profile?accesstoken=" + accessToken+"&refreshToken=" + refreshToken
+                            + "&expiresIn=" + expiresIn
+                            + "&tokenType=" + tokenType)
+                                .setStatusCode(302)
+                                .end();
+                          
                         } else {
                             ctx.response().setStatusCode(500).end("Failed to obtain access token: " + response.bodyAsString());
                         }
@@ -1807,6 +2178,7 @@ private void updateAccessTokenInDatabase(JsonObject tokenData, RoutingContext ct
                       }
                 });
 }
+
 //  /**
 //   * REMARK: Currently access control is quite limited and does not allow fine-grain per-resource access control, as
 //   * the access rules of a single service provider are currently defined by independent
