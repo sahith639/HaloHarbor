@@ -379,15 +379,11 @@ public class ControllerVerticle extends AbstractVerticle {
                     logger.info("Cleared existing data in the 'youtube' collection.");
 
                     // Wait for all `getVideo` tasks to complete
-                    CompositeFuture.all(futures).onComplete(ar -> {
+                    CompositeFuture.join(futures).onComplete(ar -> {
                         List<CommentsData> successfulResults = futures.stream()
                                 .filter(Future::succeeded)
                                 .map(f -> (CommentsData) ((Future) f).result())
                                 .collect(Collectors.toList());
-                                
-                        futures.stream()
-                                .filter(Future::failed)
-                                .forEach(f -> logger.info("Failed to process record: " + f.cause().getMessage()));
 
                         logger.info("Number of successful results: " + successfulResults.size());
 
@@ -2178,7 +2174,7 @@ private void updateAccessTokenInDatabase(JsonObject tokenData, RoutingContext ct
                                   } else {
                                       System.err.println("Failed to retrieve the access token: " + res.cause().getMessage());
                                   }
-                                  mongoClient.close();
+                                  //mongoClient.close();
                               });
 
                             ctx.response()
