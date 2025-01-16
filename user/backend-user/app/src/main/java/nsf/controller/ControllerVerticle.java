@@ -62,6 +62,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.Reader;
 import java.io.FileReader;
 import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicInteger;
+
 
 
 
@@ -324,67 +326,81 @@ public class ControllerVerticle extends AbstractVerticle {
   //           context.response().setStatusCode(500).end("Failed to process file.");
   //       }
   //   }
-  
-  
-  private void getYTData(RoutingContext context){
-    logger.info("Headers: " + context.request().headers());
-    logger.info("Context : " + context.getBodyAsString());
+
+  private void getYTData(RoutingContext context) {
     if (context.fileUploads().isEmpty()) {
-            logger.info("Error: No files uploaded!");
-            context.response().setStatusCode(400).end("No files uploaded!");
-            return;
-      }
+        context.response().setStatusCode(400).end("No files uploaded!");
+        return;
+    }
+
     context.fileUploads().forEach(fileUpload -> {
-            logger.info("Uploaded file: " + fileUpload.fileName());
-            logger.info("Temporary file location: " + fileUpload.uploadedFileName());
-            try {
-                // Parse the CSV file from its temporary location
-                Buffer fileBuffer = context.vertx().fileSystem().readFileBlocking(fileUpload.uploadedFileName());
-                String fileContent = fileBuffer.toString();
+        try {
+            Buffer fileBuffer = context.vertx().fileSystem().readFileBlocking(fileUpload.uploadedFileName());
+            String fileContent = fileBuffer.toString();
 
-                CSVParser csvParser = CSVFormat.DEFAULT
-                        .withHeader() // Use the first row as headers
-                        .withIgnoreHeaderCase() // Ignore case in headers
-                        .withTrim() // Trim whitespaces
-                        .parse(new StringReader(fileContent) );
+            CSVParser csvParser = CSVFormat.DEFAULT
+                    .withHeader()
+                    .withIgnoreHeaderCase()
+                    .withTrim()
+                    .parse(new StringReader(fileContent));
 
-                // Process CSV records
-                //List<CommentsData> commentsList = new ArrayList<>();
-                 List<Future> futures = new ArrayList<>();
-                logger.info("Starting to process CSV records...");
-                for (CSVRecord record : csvParser) {
-                    String videoId = record.get("Video ID");
-                    String commentText = record.get("Comment Text");
-                    logger.info("Processed id,comment");
+            List<Future> futures = new ArrayList<>();
+            AtomicInteger totalRecords = new AtomicInteger(0);
 
-                    Future<CommentsData> future = getVideo(videoId).map(data -> {
-                    data.comment = extractCommentText(commentText);
-                    logger.info("Comment : "+data.comment);
-                    data.sentiment = sentimentAnalysis(data.comment);
-                    logger.info("Sentiment : "+ data.sentiment);
+            // Process each CSV record
+            for (CSVRecord record : csvParser) {
+                String videoId = record.get("Video ID");
+                String commentText = record.get("Comment Text");
+
+                totalRecords.incrementAndGet(); // Count total records
+
+                if (videoId == null || videoId.isEmpty()) {
+                    logger.warn("Skipping record with missing Video ID.");
+                    continue;
+                }
+
+                // Asynchronously fetch video details
+                Future<CommentsData> future = getVideo(videoId).map(data -> {
+                    if (data != null) {
+                        data.comment = extractCommentText(commentText);
+                        data.sentiment = sentimentAnalysis(data.comment);
+                    }
                     return data;
                 });
 
                 futures.add(future);
-                }
+            }
 
-                mongoClient.removeDocuments("youtube", new JsonObject(), clearAr -> {
+            logger.info("Total number of records to process = " + totalRecords.get());
 
-                  if (clearAr.succeeded()) {
-                    logger.info("Cleared existing data in the 'comments' collection.");
-                  CompositeFuture.all(futures).onComplete(ar -> {
-                      // Collect only successfully processed results
-                      List<CommentsData> successfulResults = futures.stream()
-                              .filter(Future::succeeded) // Only include succeeded futures
-                              .map(f -> (CommentsData) ((Future) f).result()) // Map to CommentsData
-                              .collect(Collectors.toList());
+            // Clear MongoDB collection before saving new records
+            mongoClient.removeDocuments("youtube", new JsonObject(), clearAr -> {
+                if (clearAr.succeeded()) {
+                    logger.info("Cleared existing data in the 'youtube' collection.");
 
-                      // Log failures for debugging
-                      futures.stream()
-                              .filter(Future::failed) // Only include failed futures
-                              .forEach(f -> logger.info("Failed to process record: " + f.cause().getMessage()));
+                    // Wait for all `getVideo` tasks to complete
+                    CompositeFuture.all(futures).onComplete(ar -> {
+                        List<CommentsData> successfulResults = futures.stream()
+                                .filter(Future::succeeded)
+                                .map(f -> (CommentsData) ((Future) f).result())
+                                .collect(Collectors.toList());
+                                
+                        futures.stream()
+                                .filter(Future::failed)
+                                .forEach(f -> logger.info("Failed to process record: " + f.cause().getMessage()));
 
-                      successfulResults.forEach(data -> {
+                        logger.info("Number of successful results: " + successfulResults.size());
+
+                        if (successfulResults.isEmpty()) {
+                            // No successful records
+                            context.response().setStatusCode(200).end("No records were successfully processed.");
+                            return;
+                        }
+
+                        // Insert successful results into MongoDB
+                        List<Future> saveFutures = new ArrayList<>();
+                        successfulResults.forEach(data -> {
+                            Future<Void> saveFuture = Future.future(promise -> {
                                 JsonObject document = new JsonObject()
                                         .put("User ID", 1)
                                         .put("Title of Video", data.title)
@@ -395,39 +411,42 @@ public class ControllerVerticle extends AbstractVerticle {
 
                                 mongoClient.insert("youtube", document, saveAr -> {
                                     if (saveAr.succeeded()) {
-                                        logger.info("Successfully saved record for Video : " + data.title);
+                                        logger.info("Successfully saved record for Video: " + data.title);
+                                        promise.complete();
                                     } else {
-                                        logger.error("Failed to save record for Video ID: " + data.title, saveAr.cause());
+                                        logger.error("Failed to save record for Video: " + data.title, saveAr.cause());
+                                        promise.fail(saveAr.cause());
                                     }
                                 });
                             });
 
+                            saveFutures.add(saveFuture);
+                        });
 
-                      // Respond with successful results
-                      context.response()
-                              .setStatusCode(200)
-                              .end("File processed successfully! Processed " + successfulResults.size() + " valid records.");
-                  });
-                  }
-                  else {
-                    logger.error("Failed to clear the 'comments' collection: " + clearAr.cause().getMessage());
+                        // Wait for all save operations to complete
+                        CompositeFuture.all(saveFutures).onComplete(saveAr -> {
+                            if (saveAr.succeeded()) {
+                                context.response().setStatusCode(200).end("Processed and saved " + successfulResults.size() + " records successfully.");
+                            } else {
+                                logger.error("Failed to save some records.");
+                                context.response().setStatusCode(200).end("Processed " + successfulResults.size() + " records, but some failed to save.");
+                            }
+                        });
+                    });
+
+                } else {
+                    logger.error("Failed to clear the 'youtube' collection: " + clearAr.cause().getMessage());
                     context.response().setStatusCode(500).end("Failed to clear existing data in MongoDB.");
                 }
-                });
+            });
 
-
-                // Respond with success
-                // logger.info("Successfully processed {} records", commentsList.size());
-                // context.response().setStatusCode(200).end("File processed successfully! Processed " + commentsList.size() + " records.");
-
-            } catch (Exception e) {
-                // Handle errors during parsing or processing
-                logger.error("Failed to process CSV file: {}", e.getMessage(), e);
-                context.response().setStatusCode(500).end("Failed to process file.");
-            }
-
+        } catch (Exception e) {
+            logger.error("Error processing file: ", e);
+            context.response().setStatusCode(500).end("Failed to process file.");
+        }
     });
   }
+
   private Future<CommentsData> getVideo(String videoId)
   {
     Promise<CommentsData> promise = Promise.promise();
@@ -568,7 +587,7 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
       }
   });
 }
-
+  // change the client ID accordingly to the need, same with scope
   private void initiateOAuth(io.vertx.ext.web.RoutingContext ctx) {
     String authorizationUri = "https://accounts.google.com/o/oauth2/auth?" +
             "client_id=821706558807-q9aj30q47rqjb2876isgcjk68jsii830.apps.googleusercontent.com&" +
