@@ -2,9 +2,7 @@ import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
 import { useEffect, useState } from 'react';
 import { jwtDecode } from "jwt-decode";
 import { CssBaseline, ThemeProvider } from '@mui/material';
-//import './App.css';
-import './style.css';
-
+import './App.css';
 
 // Components
 import Dashboard from './scenes/dashboard';
@@ -66,9 +64,9 @@ const ProtectedRoute = ({ children }) => {
 
 function App() {
   return (
-    <div className="App">
-      {/* <ThemeProvider theme={theme}>
-        <CssBaseline /> */}
+    <div style={{ height: "100vh" }}>
+      <ThemeProvider theme={theme}>
+        <CssBaseline />
         <Routes>
           <Route path="/login" element={<Login />} />
           
@@ -117,7 +115,7 @@ function App() {
           {/* Catch all route */}
           <Route path="*" element={<Navigate to="/login" replace />} />
         </Routes>
-      {/* </ThemeProvider> */}
+      </ThemeProvider>
     </div>
   );
 }

@@ -1,8 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Box, TextField, Button, Typography } from '@mui/material';
-import Header from '../../commpont/LoginHeader';
-import '../../style.css';
 
 const Login = () => {
   const [username, setUsername] = useState("");
@@ -59,22 +57,19 @@ const Login = () => {
   };
 
   return (
-    <div>
-      <Header/>
-      <div className="form_box">
-      <h2>Login to your account</h2>
-      <form onSubmit={handleLogin } layout="inline">
+    <Box display="flex" flexDirection="column" alignItems="center" justifyContent="center" height="100vh">
+      <Typography variant="h4" gutterBottom>Login</Typography>
+      <form onSubmit={handleLogin}>
         <Box mb={2}>
-          <TextField className="input_text" label="Username" value={username} onChange={(e) => setUsername(e.target.value)} required  />
+          <TextField label="Username" value={username} onChange={(e) => setUsername(e.target.value)} required fullWidth />
         </Box>
         <Box mb={2}>
-          <TextField className="input_text" label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required  />
+          <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required fullWidth />
         </Box>
         {error && <Typography color="error">{error}</Typography>}
-        <Button type="submit" className="login-form-button" variant="contained" color="primary" >Login</Button>
+        <Button type="submit" variant="contained" color="primary" fullWidth>Login</Button>
       </form>
-      </div>
-    </div>
+    </Box>
   );
 };
 
