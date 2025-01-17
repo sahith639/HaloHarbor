@@ -15,7 +15,7 @@ import MyCard from '../../components/MyCard';
 import SectionCard from '../../components/SectionCard';
 import { ToastContainer, toast } from 'react-toastify';
 import { jwtDecode } from "jwt-decode";
-import Header from '../../commpont/Header';
+
 
 const ConnectionsPage = () => {
     const theme = useTheme();
@@ -83,9 +83,6 @@ const ConnectionsPage = () => {
     }, []);
 
     return (
-      <div style={{display:'block'}}>
-      <Header></Header>
-     
             <SectionCard>
               <Typography variant="h3" sx={{ color: "#000000"}}>
                 Connected Service Providers
@@ -152,7 +149,6 @@ const ConnectionsPage = () => {
 
         <ServProvDetailModal isOpen={detailModalOpen} onClose={() => setDetailModalOpen(false)} summaryData={detailData} onServProvsUpdate={updateServProvsList} />
       </SectionCard>
-      </div>
     );
 }
 
