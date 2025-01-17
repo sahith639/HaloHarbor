@@ -7,7 +7,7 @@ import SectionCard from '../../components/SectionCard';
 // import cachePull from '../../utils/cachePull'
 import { jwtDecode } from "jwt-decode";
 import Header from '../../commpont/Header';
-import '../../style.css';
+
 
 
 const Dashboard = () => {
@@ -76,43 +76,43 @@ const Dashboard = () => {
     };
 
     return (
-      <div style={{"display":"block"}}>
+      <div style={{"display":"flex"}}>
       <div>
         <Header></Header>
         <SectionCard>
-        <h3 style={{color:'#fff'}}>
+        <Typography variant="h3" sx={{ color: "#000000"}}>
           Dashboard
-        </h3>
-        <Typography>
-        <h5 style={{color:'#fff'}}> Text here
-          TODO have separate cards with simple fun insights maybe, like stress score and top played artist.</h5>
-          <div style={{color:'#fff'}}>
-            <h3 style={{color:'#fff'}}>Data Sharing Setting:</h3>
-            <label style={{ display: 'inline-flex', alignItems: 'center'}}>
+        </Typography>
+        <Typography variant="h5" sx={{ padding: "20px 30px 0 5px", color: "#000000"}}>
+          Text here
+          TODO have separate cards with simple fun insights maybe, like stress score and top played artist.
+          <div>
+            <h2>Data Sharing Setting:</h2>
+            <label>
               <input
                 type="checkbox"
                 checked={checkbox0}
                 onChange={() => handleCheckboxChange('0')}
               />
-            <h5 style={{color:'#fff'}}>0</h5>
+              
             </label>
             <br />
-            <label style={{ display: 'inline-flex', alignItems: 'center'}}>
+            <label>
               <input
                 type="checkbox"
                 checked={checkbox1}
                 onChange={() => handleCheckboxChange('1')}
               />
-               <h5 style={{color:'#fff'}}>1</h5>
+              1
             </label>
             <br />
-            <label style={{ display: 'inline-flex', alignItems: 'center'}}>
+            <label>
               <input
                 type="checkbox"
                 checked={checkbox2}
                 onChange={() => handleCheckboxChange('2')}
               />
-               <h5 style={{color:'#fff'}}>2</h5>
+              2
             </label>
             <br />
           </div>

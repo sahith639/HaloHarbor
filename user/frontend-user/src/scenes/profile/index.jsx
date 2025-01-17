@@ -79,11 +79,11 @@ const Profile = () => {
         <Header></Header>
        
         <SectionCard>
-        <h3 style={{color:'#fff'}}>
+          <Typography variant="h3" sx={{ color: "#000000"}}>
             Data Source Integrations
           
-        </h3>
-          <br></br>
+          </Typography>
+          
           <div>
           {("spotify" in dataSources) ? (
               <Button variant="contained" onClick={() => setDataSourceModalKey("spotify")} color="success">Spotify</Button>
@@ -106,9 +106,9 @@ const Profile = () => {
 
 
         <SectionCard>
-        <h3 style={{color:'#fff'}}>
+          <Typography variant="h3" sx={{ color: "#000000"}}>
             Credentials
-          </h3>
+          </Typography>
           
           {(Object.keys(credentials).length > 0) ? (
             <Button variant="contained" onClick={() => setBcGovCredentialDetailModalOpen(true)} color="success">Demo Credential</Button>

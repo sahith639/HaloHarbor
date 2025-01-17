@@ -17,7 +17,7 @@ const PageFrame = ({ element }) => {
   return (
     <div style={{ height: "100vh", display: "flex" }}>
       <ThisProSidebar />
-      <main style={{flex: "1", display: "flex", flexDirection: "column", backgroundColor: "rgb(24, 26, 31)"}}>
+      <main style={{flex: "1", display: "flex", flexDirection: "column"}}>
         {/* <Box m="5vh">
           <Button variant="outlined" color="secondary" onClick={handleLogout}>
             Logout
