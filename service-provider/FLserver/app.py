@@ -5,7 +5,7 @@ import keras
 from keras import utils
 from keras.models import Sequential
 from keras.models import load_model
-from keras.layers import Dense,Activation,Dropout
+from keras.layers import Dense, Activation, Dropout
 from keras.layers import BatchNormalization
 from keras.optimizers import Adam
 from tensorflow.keras.layers import Input
@@ -23,69 +23,79 @@ import io
 import json
 from flask_cors import CORS, cross_origin
 
-updated = [0,0,0]
+updated = [0, 0, 0]
 rejected = []
 logs = []
 num_rounds = 1
 rounds_counter = 1
+
+
 def create_model():
-  model=Sequential()
-  model.add(Input(shape=(4,)))
-  model.add(Dense(1000,activation='relu'))
-  model.add(Dense(500,activation='relu'))
-  model.add(Dense(300,activation='relu'))
-  model.add(Dropout(0.2))
-  model.add(Dense(3,activation='softmax'))
-  model.compile(loss='categorical_crossentropy',optimizer=Adam(learning_rate=0.01),metrics=['accuracy'])
-  model.summary()
-  return model
+    model = Sequential()
+    model.add(Input(shape=(4,)))
+    model.add(Dense(1000, activation='relu'))
+    model.add(Dense(500, activation='relu'))
+    model.add(Dense(300, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(3, activation='softmax'))
+    model.compile(loss='categorical_crossentropy', optimizer=Adam(
+        learning_rate=0.01), metrics=['accuracy'])
+    model.summary()
+    return model
+
 
 def save_global_updates(model, additional_info=None):
-  client_updates = {"weights": model.get_weights()}
-  if additional_info:
-    client_updates.update(additional_info)
-  with open(f"global_update.pkl", "wb") as f:
-    pickle.dump(client_updates, f)
+    client_updates = {"weights": model.get_weights()}
+    if additional_info:
+        client_updates.update(additional_info)
+    with open(f"global_update.pkl", "wb") as f:
+        pickle.dump(client_updates, f)
+
 
 def create_global_model():
-  model=Sequential()
-  model.add(Dense(1000,input_dim=4,activation='relu'))
-  model.add(Dense(500,activation='relu'))
-  model.add(Dense(300,activation='relu'))
-  model.add(Dropout(0.2))
-  model.add(Dense(3,activation='softmax'))
-  model.compile(loss='categorical_crossentropy',optimizer='adam',metrics=['accuracy'])
-  return model
+    model = Sequential()
+    model.add(Dense(1000, input_dim=4, activation='relu'))
+    model.add(Dense(500, activation='relu'))
+    model.add(Dense(300, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(3, activation='softmax'))
+    model.compile(loss='categorical_crossentropy',
+                  optimizer='adam', metrics=['accuracy'])
+    return model
 
 
 def aggregate_client_updates(client_update_files):
-  all_client_weights = []
-  for file_path in client_update_files:
-    with open(file_path, "rb") as f:
-      client_updates = pickle.load(f)
-    client_weights = client_updates["weights"]
-    all_client_weights.append(client_weights)
-  aggregated_weights = [sum(weights) / len(weights) for weights in zip(*all_client_weights)]
-  return aggregated_weights
+    all_client_weights = []
+    for file_path in client_update_files:
+        with open(file_path, "rb") as f:
+            client_updates = pickle.load(f)
+        client_weights = client_updates["weights"]
+        all_client_weights.append(client_weights)
+    aggregated_weights = [sum(weights) / len(weights)
+                          for weights in zip(*all_client_weights)]
+    return aggregated_weights
+
 
 def get_size_in_mb(text):
-  """
-  Calculates the size of a string in megabytes (MB).
+    """
+    Calculates the size of a string in megabytes (MB).
 
-  Args:
-      text: The string to calculate the size for.
+    Args:
+        text: The string to calculate the size for.
 
-  Returns:
-      The size of the string in megabytes, rounded to two decimal places.
-  """
-  # Get the size of the string in bytes
-  string_size_bytes = len(text.encode('utf-8'))
+    Returns:
+        The size of the string in megabytes, rounded to two decimal places.
+    """
+    # Get the size of the string in bytes
+    string_size_bytes = len(text.encode('utf-8'))
 
-  # Convert bytes to megabytes and round to two decimal places
-  size_in_mb = round(string_size_bytes / (1024 * 1024), 2)
+    # Convert bytes to megabytes and round to two decimal places
+    size_in_mb = round(string_size_bytes / (1024 * 1024), 2)
 
-  return size_in_mb
+    return size_in_mb
 # 3. Federated Learning Loop:
+
+
 def federated_training(global_model):
   global logs
   global rounds_counter
@@ -113,10 +123,10 @@ def federated_training(global_model):
   return "All Training Done"
 
 
-
 app = Flask(__name__)
 cors = CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
+
 
 @app.route("/")
 @cross_origin()
@@ -130,12 +140,14 @@ def run():
     final_model = federated_training(global_model)
     return final_model, 200
 
+
 @app.route("/get-logs")
 @cross_origin()
 def log():
     global logs
     data = {'value': '\n'.join(logs), 'code': 'SUCCESS'}
     return make_response(jsonify(data), 201)
+
 
 @app.route("/response", methods=['POST'])
 def resopnse():
@@ -153,8 +165,8 @@ def resopnse():
     logs.append(f"{data['client_id']} responded")
     
     updated[int(data["client_id"])] = 1
-    
-    print('payload size',len(payload['value']))
+
+    print('payload size', len(payload['value']))
     if payload['value'] == 'None':
       rejected.append(int(data["client_id"]))
       print(data["client_id"],'rejected training')
@@ -169,12 +181,13 @@ def resopnse():
     # Access the data part of the request
     print(data)  # Example: {'key1': 'value1', 'key2': 'value2'}
     if all(i == 1 for i in updated):
-      client_update_files = [f"client_{client_id}_update.pkl" for client_id in range(0,3) if client_id not in rejected]
-      print('aggregating')
-      logs.append('Aggregating Modle')
-      aggregated_weights = aggregate_client_updates(client_update_files)
-      print('Aggregation Done!')
-      logs.append('Aggregation Done!')
+        client_update_files = [f"client_{client_id}_update.pkl" for client_id in range(
+            0, 3) if client_id not in rejected]
+        print('aggregating')
+        logs.append('Aggregating Modle')
+        aggregated_weights = aggregate_client_updates(client_update_files)
+        print('Aggregation Done!')
+        logs.append('Aggregation Done!')
 
       # Update the global model
       global_model = create_global_model()
@@ -213,9 +226,9 @@ def resopnse():
     return 'File and data received'+ '200'
    
 if __name__ == "__main__":
-    updated = [0,0,0]
+    updated = [0, 0, 0]
     rejected = []
     logs = []
     num_rounds = 2
     rounds_counter = 1
-    app.run(host='0.0.0.0', port=int("4500"),debug=True)
+    app.run(host='0.0.0.0', port=int("4500"), debug=True)

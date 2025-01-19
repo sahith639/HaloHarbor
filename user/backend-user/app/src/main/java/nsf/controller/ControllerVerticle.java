@@ -46,6 +46,7 @@ import io.vertx.ext.web.FileUpload;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.DecodeException;
 import java.io.IOException;
+import java.io.StringReader;
 import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
@@ -56,6 +57,25 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.file.FileSystem;
 import java.util.HashMap;
 import java.util.Map;
+import io.vertx.ext.web.client.HttpResponse;
+import edu.stanford.nlp.pipeline.*;
+import edu.stanford.nlp.ling.*;
+import edu.stanford.nlp.sentiment.SentimentCoreAnnotations;
+import edu.stanford.nlp.pipeline.Annotation;
+import edu.stanford.nlp.pipeline.StanfordCoreNLP;
+import edu.stanford.nlp.util.CoreMap;
+import org.apache.commons.csv.CSVFormat;
+import org.apache.commons.csv.CSVParser;
+import org.apache.commons.csv.CSVRecord;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.Reader;
+import java.io.FileReader;
+import java.util.stream.Collectors;
+import java.util.concurrent.atomic.AtomicInteger;
+
+
+
 
 public class ControllerVerticle extends AbstractVerticle {
   private static final Logger logger = LoggerFactory.getLogger(ControllerVerticle.class);
@@ -69,7 +89,12 @@ public class ControllerVerticle extends AbstractVerticle {
   private final BaseServProvService servProvService;
   private final BaseDataService dataService;
   private static JsonObject userSettings;
+  private MongoClient oauthMongoClient;
+  private MongoClient locationMongoClient;
   private ConcurrentHashMap<String, ConcurrentHashMap<Integer, String>> dataParts = new ConcurrentHashMap<>();
+  private String accesstok;
+  private String reftoken;
+
 
   /**
    * Wait between making a connection to an SP and getting their
@@ -89,6 +114,7 @@ public class ControllerVerticle extends AbstractVerticle {
   private final Map<String, RoutingContext> waitingForSharedDataAckCtx = new ConcurrentHashMap<>();
   private final Map<String, Promise<JsonObject>> waitingForConnResponse = new ConcurrentHashMap<>();
 
+
   Random random = new Random();
 
   public ControllerVerticle(MongoClient mongoClient, AriesClient ariesClient,
@@ -104,22 +130,25 @@ public class ControllerVerticle extends AbstractVerticle {
   @Override
   public void start(Promise<Void> promise) {
     Router router = Router.router(vertx);
-    // router.route().handler(CorsHandler.create("*")
-    // .allowedMethod(HttpMethod.GET)
-    // .allowedMethod(HttpMethod.POST)
-    // .allowedMethod(HttpMethod.OPTIONS)
-    // .allowedMethod(HttpMethod.DELETE)
-    // .allowedMethod(HttpMethod.PATCH)
-    // .allowedMethod(HttpMethod.PUT)
-    // .allowCredentials(true)
-    // .allowedHeader("Access-Control-Allow-Headers")
-    // .allowedHeader("Authorization")
-    // .allowedHeader("Access-Control-Allow-Method")
-    // .allowedHeader("Access-Control-Allow-Origin")
-    // .allowedHeader("Access-Control-Allow-Credentials")
-    // .allowedHeader("Content-Type"));
-    router.route().handler(BodyHandler.create());
+//    router.route().handler(CorsHandler.create("*")
+//        .allowedMethod(HttpMethod.GET)
+//        .allowedMethod(HttpMethod.POST)
+//        .allowedMethod(HttpMethod.OPTIONS)
+//        .allowedMethod(HttpMethod.DELETE)
+//        .allowedMethod(HttpMethod.PATCH)
+//        .allowedMethod(HttpMethod.PUT)
+//        .allowCredentials(true)
+//        .allowedHeader("Access-Control-Allow-Headers")
+//        .allowedHeader("Authorization")
+//        .allowedHeader("Access-Control-Allow-Method")
+//        .allowedHeader("Access-Control-Allow-Origin")
+//        .allowedHeader("Access-Control-Allow-Credentials")
+//        .allowedHeader("Content-Type"));
 
+//Testing the mongodbConnection
+  oauthMongoClient = MongoClient.createShared(vertx, new JsonObject()
+        .put("connection_string", "mongodb://localhost:37017/oauthDatabase"));
+    router.route().handler(BodyHandler.create().setHandleFileUploads(true));
     router.route().handler(ctx -> {
         ctx.response()
               .putHeader("Access-Control-Allow-Origin", "*")
@@ -133,6 +162,7 @@ public class ControllerVerticle extends AbstractVerticle {
         ctx.next();
       }
     });
+
 
     // TODO Refactor split up into multiple handler files.
 
@@ -148,8 +178,20 @@ public class ControllerVerticle extends AbstractVerticle {
     router.get("/service-providers/:serviceProviderId/data-menu").handler(this::getDataSharingSettingsHandler);
     router.put("/service-providers/:serviceProviderId/data-menu").handler(this::setDataMenuSettings);
     router.delete("/service-providers/:serviceProviderId").handler(this::removeServiceProviderHandler);
-    // router.put("/access/:serviceProviderId").handler(this::setServiceProviderAccessControl);
+//    router.put("/access/:serviceProviderId").handler(this::setServiceProviderAccessControl);
+// Initialize OAuth routes
+  // router.get("/auth/google/initiate").handler(this::initiateOAuth);
+  // router.get("/auth/google/xlab").handler(this::attemptFetchProfile);
+  // Initialize OAuth routes
+  router.get("/auth/google/initiate").handler(this::initiateOAuth);
+  router.get("/auth/google/xlab").handler(this::handleOAuthCallback);
+  
+  
+  router.get("/auth/fetchProfile").handler(this::attemptFetchProfile);
+    //    router.put("/access/:serviceProviderId").handler(this::setServiceProviderAccessControl);
+   
 
+// router.get("/fetch/emails").handler(this::fetchEmails);
     router.get("/credentials").handler(this::listCredentials);
     router.post("/add-credential").handler(this::addCredential);
 
@@ -172,7 +214,10 @@ public class ControllerVerticle extends AbstractVerticle {
     router.post("/webhook/topic/present_proof").handler(this::presentProofUpdate);
     router.post("/webhook/topic/out_of_band").handler(this::outOfBandHandler);
     router.post("/webhook/topic/basicmessages").handler(this::basicMessageHandler);
-    userSettings = new JsonObject().put("0", true).put("1", true).put("2", true);
+    router.post("/api/location").handler(this::handleLocationPost);
+    router.post("/api/yt").handler(this::getYTData);
+
+    userSettings = new JsonObject().put("0",true).put("1",true).put("2",true);
     int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9080"));
     vertx.createHttpServer()
         .requestHandler(router)
@@ -185,7 +230,390 @@ public class ControllerVerticle extends AbstractVerticle {
         .onFailure(promise::fail);
   }
 
-  private void getCollectedData(RoutingContext ctx) {
+  // would be useful in future if there's a plan to include third party data providers
+  // private void getWatchHistory(RoutingContext ctx)
+  // {
+  //   WebClient webClient = WebClient.create(vertx);
+  //   String url = "https://www.googleapis.com/youtube/v3/activities";
+  //   webClient.getAbs(url)
+  //           .addQueryParam("part", "snippet,contentDetails")
+  //           .addQueryParam("mine", "true")
+  //           .addQueryParam("maxResults", "10") // Limit the results
+  //           .putHeader("Authorization", "Bearer " + accesstok)
+  //           .as(BodyCodec.jsonObject())
+  //           .send(ar -> {
+  //               if (ar.succeeded()) {
+  //                   // Successful response
+  //                   JsonObject response = ar.result().body();
+  //                   io.vertx.core.json.JsonArray items = response.getJsonArray("items");
+  //                   ArrayList<WatchHistoryData> watchHistoryList = new ArrayList<>();
+  //                   for (int i = 0; i < items.size(); i++) {
+  //                     JsonObject item = items.getJsonObject(i);
+  //                     JsonObject snippet = item.getJsonObject("snippet");
+  //                     String title = snippet.getString("title", "No Title");
+  //                     String description = snippet.getString("description", "No Description");
+
+  //                     // Creating WatchHistoryData object and adding it to the list
+  //                     watchHistoryList.add(new WatchHistoryData(title, description));
+  //                   }
+  //                   for (WatchHistoryData data : watchHistoryList) {
+  //                     logger.info(data.toString());
+  //                   }
+  //                   //ctx.response().putHeader("Location", "http://localhost:3001/profile?accesstoken=" + accesstok +"&refreshToken=" + reftoken).setStatusCode(302).end();
+  //               } else {
+  //                   // Handle failure (could be token expiration, network issues, etc.)
+  //                   logger.error("Failed to fetch watch history: " + ar.cause().getMessage());
+  //                   //ctx.response().setStatusCode(500).end("Fetching yt data failed: " + ar.cause().getMessage());
+  //               }
+  //           });
+  // }
+ 
+  // private void getLikes(RoutingContext ctx)
+  // {
+  //   WebClient webClient = WebClient.create(vertx);
+  //   String url = "https://www.googleapis.com/youtube/v3/videos";
+  //   webClient.getAbs(url)
+  //           .addQueryParam("part", "snippet,contentDetails")
+  //           .addQueryParam("myRating", "like")
+  //           .addQueryParam("maxResults", "10") // Limit the results
+  //           .putHeader("Authorization", "Bearer " + accesstok)
+  //           .as(BodyCodec.jsonObject())
+  //           .send(ar -> {
+  //               if (ar.succeeded()) {
+  //                   // Successful response
+  //                   JsonObject response = ar.result().body();
+  //                   io.vertx.core.json.JsonArray items = response.getJsonArray("items");
+  //                   ArrayList<LikesData> likesList = new ArrayList<>();
+  //                   for (int i = 0; i < items.size(); i++) {
+  //                     JsonObject item = items.getJsonObject(i);
+  //                     JsonObject snippet = item.getJsonObject("snippet");
+  //                     String title = snippet.getString("title", "No Title");
+  //                     String description = snippet.getString("description", "No Description");
+  //                     String channelTitle = snippet.getString("channelTitle", "No Channel Title");
+  //                     JsonObject contentDetails = item.getJsonObject("contentDetails");
+  //                     String duration = contentDetails.getString("duration", "No Duration");
+
+  //                     // Creating SubsData object and adding it to the list
+  //                     likesList.add(new LikesData(title, description, channelTitle,duration));
+  //                   }
+  //                   for (LikesData data : likesList) {
+  //                     logger.info(data.toString());
+  //                   }
+  //                   getVideo("sdfdsfsd");
+                    
+  //                   //ctx.response().putHeader("Location", "http://localhost:3001/profile?accesstoken=" + accesstok +"&refreshToken=" + reftoken).setStatusCode(302).end();
+  //               } else {
+  //                   // Handle failure (could be token expiration, network issues, etc.)
+  //                   logger.error("Failed to fetch watch history: " + ar.cause().getMessage());
+  //                   //ctx.response().setStatusCode(500).end("Fetching yt data failed: " + ar.cause().getMessage());
+  //               }
+  //           });
+  // }
+  // private void getYTData1(RoutingContext context){
+  //   Buffer uploadedFile = context.getBody();
+  //   logger.info("Headers2323: "+ context.fileUploads().toString());
+  //   logger.info("Headers: " + context.request().headers());
+  //   logger.info("Context : " + context.getBodyAsString());
+  //   if (uploadedFile == null || uploadedFile.length() == 0) {
+  //     context.response().setStatusCode(400).end("File is missing or empty");
+  //     logger.info("Here byt error 1");
+  //   }
+  
+  //   try {
+      
+  //           String csvContent = uploadedFile.toString();
+  //           CSVParser csvParser = CSVFormat.DEFAULT.withHeader().parse(new StringReader(csvContent));
+  //           ArrayList<CommentsData> commentsList = new ArrayList<>();
+  //           logger.info("Here byt error 2");
+  //           for (CSVRecord record : csvParser) {
+              
+  //             String videoId = record.get("Video ID");
+  //             String comment = record.get("Comment Text");
+
+  //             CommentsData data = getVideo(videoId);
+  //             data.comment = extractCommentText(comment);
+  //             logger.info("Here byt error 3");
+  //             data.sentiment = sentimentAnalysis(data.comment);
+  //             logger.info("Here byt error 4");
+
+  //           }
+  //           context.response().setStatusCode(200).end("File processed successfully!");
+
+  //       } catch (Exception e) {
+  //           e.printStackTrace();
+  //           context.response().setStatusCode(500).end("Failed to process file.");
+  //       }
+  //   }
+
+  private void getYTData(RoutingContext context) {
+    if (context.fileUploads().isEmpty()) {
+        context.response().setStatusCode(400).end("No files uploaded!");
+        return;
+    }
+
+    context.fileUploads().forEach(fileUpload -> {
+        try {
+            Buffer fileBuffer = context.vertx().fileSystem().readFileBlocking(fileUpload.uploadedFileName());
+            String fileContent = fileBuffer.toString();
+
+            CSVParser csvParser = CSVFormat.DEFAULT
+                    .withHeader()
+                    .withIgnoreHeaderCase()
+                    .withTrim()
+                    .parse(new StringReader(fileContent));
+
+            List<Future> futures = new ArrayList<>();
+            AtomicInteger totalRecords = new AtomicInteger(0);
+
+            // Process each CSV record
+            for (CSVRecord record : csvParser) {
+                String videoId = record.get("Video ID");
+                String commentText = record.get("Comment Text");
+
+                totalRecords.incrementAndGet(); // Count total records
+
+                if (videoId == null || videoId.isEmpty()) {
+                    logger.warn("Skipping record with missing Video ID.");
+                    continue;
+                }
+
+                // Asynchronously fetch video details
+                Future<CommentsData> future = getVideo(videoId).map(data -> {
+                    if (data != null) {
+                        data.comment = extractCommentText(commentText);
+                        data.sentiment = sentimentAnalysis(data.comment);
+                    }
+                    return data;
+                });
+
+                futures.add(future);
+            }
+
+            logger.info("Total number of records to process = " + totalRecords.get());
+
+            // Clear MongoDB collection before saving new records
+            mongoClient.removeDocuments("youtube", new JsonObject(), clearAr -> {
+                if (clearAr.succeeded()) {
+                    logger.info("Cleared existing data in the 'youtube' collection.");
+
+                    // Wait for all `getVideo` tasks to complete
+                    CompositeFuture.join(futures).onComplete(ar -> {
+                        List<CommentsData> successfulResults = futures.stream()
+                                .filter(Future::succeeded)
+                                .map(f -> (CommentsData) ((Future) f).result())
+                                .collect(Collectors.toList());
+
+                        logger.info("Number of successful results: " + successfulResults.size());
+
+                        if (successfulResults.isEmpty()) {
+                            // No successful records
+                            context.response().setStatusCode(200).end("No records were successfully processed.");
+                            return;
+                        }
+
+                        // Insert successful results into MongoDB
+                        List<Future> saveFutures = new ArrayList<>();
+                        successfulResults.forEach(data -> {
+                            Future<Void> saveFuture = Future.future(promise -> {
+                                JsonObject document = new JsonObject()
+                                        .put("User ID", 1)
+                                        .put("Title of Video", data.title)
+                                        .put("Description of Video", data.description)
+                                        .put("Category ID", data.categoryId)
+                                        .put("Comment", data.comment)
+                                        .put("Sentiment", data.sentiment);
+
+                                mongoClient.insert("youtube", document, saveAr -> {
+                                    if (saveAr.succeeded()) {
+                                        logger.info("Successfully saved record for Video: " + data.title);
+                                        promise.complete();
+                                    } else {
+                                        logger.error("Failed to save record for Video: " + data.title, saveAr.cause());
+                                        promise.fail(saveAr.cause());
+                                    }
+                                });
+                            });
+
+                            saveFutures.add(saveFuture);
+                        });
+
+                        // Wait for all save operations to complete
+                        CompositeFuture.all(saveFutures).onComplete(saveAr -> {
+                            if (saveAr.succeeded()) {
+                                context.response().setStatusCode(200).end("Processed and saved " + successfulResults.size() + " records successfully.");
+                            } else {
+                                logger.error("Failed to save some records.");
+                                context.response().setStatusCode(200).end("Processed " + successfulResults.size() + " records, but some failed to save.");
+                            }
+                        });
+                    });
+
+                } else {
+                    logger.error("Failed to clear the 'youtube' collection: " + clearAr.cause().getMessage());
+                    context.response().setStatusCode(500).end("Failed to clear existing data in MongoDB.");
+                }
+            });
+
+        } catch (Exception e) {
+            logger.error("Error processing file: ", e);
+            context.response().setStatusCode(500).end("Failed to process file.");
+        }
+    });
+  }
+
+  private Future<CommentsData> getVideo(String videoId)
+  {
+    Promise<CommentsData> promise = Promise.promise();
+    WebClient webClient = WebClient.create(vertx);
+    String url = "https://www.googleapis.com/youtube/v3/videos";
+    CommentsData[] cData= new CommentsData[1];
+    webClient.getAbs(url)
+            .addQueryParam("part", "snippet,contentDetails")
+            .addQueryParam("id", videoId)// get the specific video
+            .putHeader("Authorization", "Bearer " + accesstok)
+            .as(BodyCodec.jsonObject())
+            .send(ar -> {
+                if (ar.succeeded()) {
+                  try{
+                    JsonObject response = ar.result().body();
+                    io.vertx.core.json.JsonArray items = response.getJsonArray("items");
+                    if (items == null || items.isEmpty()) {
+                        promise.fail("No video data found for Video ID: " + videoId);
+                        return;
+                    }
+                    JsonObject item = items.getJsonObject(0);
+
+                    JsonObject snippet = item.getJsonObject("snippet");
+                    String title = snippet.getString("title", "No Title");
+                    String description = snippet.getString("description", "No Description");
+                    String categoryId = snippet.getString("categoryId", "N/A");
+
+                    JsonObject contentDetails = item.getJsonObject("contentDetails");
+                    String duration = contentDetails.getString("duration", "No Duration");
+                    CommentsData data =  new CommentsData(title, description, categoryId,duration);
+                    promise.complete(data);
+                  }
+                  catch (Exception e) {
+                    // Handle any parsing errors
+                    promise.fail("Failed to parse video details: " + e.getMessage());
+                }
+                  
+                    //ctx.response().putHeader("Location", "http://localhost:3001/profile?accesstoken=" + accesstok +"&refreshToken=" + reftoken).setStatusCode(302).end();
+                } 
+                else {
+                    // Handle failure (could be token expiration, network issues, etc.)
+                    promise.fail("Failed to fetch video data: " + ar.cause().getMessage());
+                    //ctx.response().setStatusCode(500).end("Fetching yt data failed: " + ar.cause().getMessage());
+                }
+                
+            });
+            return promise.future();
+  }
+  // extract comment from the comment tree we get from csv file
+  private String extractCommentText(String jsonString) {
+        try {
+            // Parse the JSON string using ObjectMapper
+            ObjectMapper objectMapper = new ObjectMapper();
+            JsonNode rootNode = objectMapper.readTree(jsonString);
+            JsonNode textNode = rootNode.path("text");
+
+            return textNode.asText();
+        } catch (Exception e) {
+            e.printStackTrace();
+            return "";
+        }
+    }
+
+  //performing sentiment analysis and categorizing the comment
+  private String sentimentAnalysis(String text) {
+    if (text == null || text.isEmpty()) return "Neutral";
+
+    // Set up Stanford CoreNLP pipeline
+    Properties props = new Properties();
+    props.setProperty("annotators", "tokenize, ssplit, parse, sentiment");
+    StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
+    Annotation annotation = new Annotation(text);
+    pipeline.annotate(annotation);
+
+    // Analyze sentiment for each sentence
+    List<CoreMap> sentences = annotation.get(CoreAnnotations.SentencesAnnotation.class);
+    int totalSentimentScore = 0;
+    int sentenceCount = 0;
+
+    for (CoreMap sentence : sentences) {
+        String sentiment = sentence.get(SentimentCoreAnnotations.SentimentClass.class);
+
+        // Map sentiment to numerical score
+        int sentimentScore = sentiment.equalsIgnoreCase("Very positive") ? 2
+                          : sentiment.equalsIgnoreCase("Positive") ? 1
+                          : sentiment.equalsIgnoreCase("Neutral") ? 0
+                          : sentiment.equalsIgnoreCase("Negative") ? -1
+                          : sentiment.equalsIgnoreCase("Very negative") ? -2
+                          : 0;
+
+        totalSentimentScore += sentimentScore;
+        sentenceCount++;
+    }
+
+    // Calculate average sentiment score
+    double averageSentimentScore = (double) totalSentimentScore / sentenceCount;
+
+    // Map average score to sentiment category
+    if (averageSentimentScore > 0) return "Positive";
+    if (averageSentimentScore == 0) return "Neutral";
+    return "Negative";
+}
+
+  private void handleLocationPost(RoutingContext context) {
+    JsonObject json = context.getBodyAsJson();
+    mongoClient.save("locationDataCollection", json, res -> {
+      if (res.succeeded()) {
+        context.response()
+          .setStatusCode(200)
+          .putHeader("Content-Type", "application/json")
+          .end(new JsonObject().put("status", "Location data saved successfully!").encode());
+      } else {
+        logger.error("Failed to save location data: " + res.cause());
+        context.response()
+          .setStatusCode(500)
+          .putHeader("Content-Type", "application/json")
+          .end(new JsonObject().put("error", "Failed to save location data").encode());
+      }
+    });
+}
+
+
+private void saveLocationData(LocationData locationData, Handler<AsyncResult<Void>> resultHandler) {
+
+  locationMongoClient = MongoClient.createShared(vertx, new JsonObject()
+  .put("connection_string", "mongodb://localhost:37017/mapsDatabase"));
+
+  JsonObject document = new JsonObject()
+      .put("latitude", locationData.getLatitude())
+      .put("longitude", locationData.getLongitude())
+      .put("timestamp", locationData.getTimestamp());
+
+      locationMongoClient.save("locationDataCollection", document, res -> {
+      if (res.succeeded()) {
+          resultHandler.handle(Future.succeededFuture());
+      } else {
+          resultHandler.handle(Future.failedFuture(res.cause()));
+      }
+  });
+}
+  // change the client ID accordingly to the need, same with scope
+  private void initiateOAuth(io.vertx.ext.web.RoutingContext ctx) {
+    String authorizationUri = "https://accounts.google.com/o/oauth2/auth?" +
+            "client_id=821706558807-q9aj30q47rqjb2876isgcjk68jsii830.apps.googleusercontent.com&" +
+            "response_type=code&" +
+            "scope=https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile https://www.googleapis.com/auth/youtube&" +
+            "redirect_uri=http://localhost:9080/auth/google/xlab&" +
+            "access_type=offline&prompt=consent";
+    ctx.response().putHeader("Location", authorizationUri).setStatusCode(302).end();
+}
+
+
+  private void getCollectedData(RoutingContext ctx){
     JsonObject allQuery = new JsonObject();
     mongoClient.find("shared_data_items", allQuery, h -> {
       if (h.succeeded()) {
@@ -1701,6 +2129,245 @@ private void listServProvsHandler(RoutingContext ctx) {
           ctx.response().setStatusCode(500).send(e.toString());
         });
   }
+
+  //validity = 1=new entry, 2=updaterefreshtoken, 0=no updating
+  //Currently testing with a singleuser emailid just for the dataplug
+// Step 1: Attempt to Fetch Profile using stored token
+private void attemptFetchProfile(RoutingContext ctx) {
+  oauthMongoClient.findOne("tokens", new JsonObject().put("email", "shikharapagadala17@gmail.com"), null, res -> {
+      if (res.succeeded()) {
+          JsonObject tokenData = res.result();
+          if (tokenData != null && !tokenData.isEmpty()) {
+              long expiresAt = tokenData.getLong("expiresAt");
+              if (System.currentTimeMillis() < expiresAt) {
+                  // Token is still valid
+                  fetchUserProfile(tokenData, ctx, tokenData.getString("accessToken"), 0);
+              } else {
+                  // Token expired, refresh it
+                  refreshAccessToken(tokenData.getString("refreshToken"), ctx);
+              }
+          } else {
+              // No token found, redirect to login
+              ctx.response()
+                  .putHeader("Location", "http://localhost:3001/profile")
+                  .setStatusCode(302)
+                  .end("No valid session found, please log in.");
+          }
+      } else {
+          ctx.response().setStatusCode(500).end("Database query failed: " + res.cause().getMessage());
+      }
+  });
+}
+
+
+// Step 2: Fetch or Refresh Access Token
+private void refreshAccessToken(String refreshToken, RoutingContext ctx) {
+  WebClientOptions options = new WebClientOptions().setConnectTimeout(10000); // 10 seconds timeout
+  WebClient webClient = WebClient.create(vertx, options);
+
+  MultiMap formData = MultiMap.caseInsensitiveMultiMap();
+  formData.add("client_id", "646074574769-ggemkk87qcdej7tanre38qjm20kn4f9m.apps.googleusercontent.com")
+          .add("client_secret", "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")
+          .add("refresh_token", refreshToken)
+          .add("grant_type", "refresh_token");
+
+  webClient.postAbs("https://oauth2.googleapis.com/token")
+          .putHeader("Content-Type", "application/x-www-form-urlencoded")
+          .as(BodyCodec.jsonObject())
+          .sendForm(formData, ar -> {
+              if (ar.succeeded()) {
+                  HttpResponse<JsonObject> response = ar.result();
+                  if (response.statusCode() == 200) {
+                      JsonObject responseBody = response.body();
+                      fetchUserProfile(responseBody, ctx, responseBody.getString("access_token"),2);
+                  } else {
+                      ctx.response().setStatusCode(response.statusCode()).end("Failed to refresh token: " + response.bodyAsString());
+                  }
+              } else {
+                  ctx.response().setStatusCode(500).end("Token refresh request failed: " + ar.cause().toString());
+              }
+          });
+}
+
+
+private void fetchUserProfile(RoutingContext ctx) {
+  Promise<JsonObject> promise = Promise.promise();
+  WebClient client = WebClient.create(vertx);
+
+  client.getAbs("https://www.googleapis.com/oauth2/v3/userinfo")
+      .putHeader("Authorization", "Bearer " + "ya29.a0AeDClZDetKoxSCrTmKzkirPL1ZJxocoJxp1lvnKw2YvN2O6nUzmDg4Tm3Aif3jQlaVqy37W6_zMOjP50T3q8Fge7IRLg5tUQSZ-trjppKOjNrxpJs7XphsZ9qdfWBfDe7YIxQyIa1PdLldaJjOJHAUvSr7xMSyOjlCbNp8DlaCgYKASQSARMSFQHGX2MiwVyL2Nu3HSCRAbiJ4sWOtA0175")
+     // .putHeader("Authorization", "Bearer " + accessToken)
+      .as(BodyCodec.jsonObject())
+      .send(ar -> {
+          if (ar.succeeded()) {
+              HttpResponse<JsonObject> userInfo = ar.result();
+              JsonObject responseBody = userInfo.body();
+              //updateTokenInDatabase(tokenData, ctx, userInfo,  accessToken);
+              ctx.response()
+              .putHeader("Location", "http://localhost:3001/profile?Fetchingprofile"+responseBody)
+              .setStatusCode(302)
+              .end();
+          } else {
+              ctx.response()
+            .setStatusCode(500)
+            .end("Failed to Fetch users profile " + ar.cause().getMessage());
+          }
+      });
+}
+
+ private void fetchUserProfile(JsonObject tokenData, RoutingContext ctx,String accessToken, int validity) {
+  Promise<JsonObject> promise = Promise.promise();
+  WebClient client = WebClient.create(vertx);
+
+  client.getAbs("https://www.googleapis.com/oauth2/v3/userinfo")
+      //.putHeader("Authorization", "Bearer " + "ya29.a0AeDClZC89mgtwaitFAGum2my-AWB257Q3634w8gDxN9D8ZfbKNregEKbEzwmUmCFqZAzEEDtLQHENfD2f4MJwh1Q48l2I-oH6Wtw5LdTcAnpDXQ8KmdlJf2CIUZYupDDpLuyOoVhGHtlyhNJ4Wja6-Iz0USaiB00MPDgyYyqaCgYKAYoSARMSFQHGX2MidCkb3Ec7d_Dx3ti4iGvVbQ0175")
+      .putHeader("Authorization", "Bearer " + accessToken)
+      .as(BodyCodec.jsonObject())
+      .send(ar -> {
+          if (ar.succeeded()) {
+            HttpResponse<JsonObject> userInfo = ar.result();
+            JsonObject responseBody = userInfo.body();
+            if(validity==1){
+             updateTokenInDatabase(tokenData, ctx, responseBody,  accessToken);
+            }else if(validity==2){
+              updateAccessTokenInDatabase(tokenData, ctx, responseBody,  accessToken);
+            }
+              logger.info("User's email: " + responseBody.getString("email"));
+              ctx.response()
+              .putHeader("Location", "http://localhost:3001/profile?Fetchingprofile"+responseBody.getString("email"))
+              .setStatusCode(302)
+              .end();
+          } else {
+              logger.error("Failed to fetch user profile: " + ar.cause().getMessage());
+              ctx.response()
+            .setStatusCode(500)
+            .end("Failed to Fetch users profile " + ar.cause().getMessage());
+          }
+      });
+}
+// Update or Save Token in Database
+private void updateTokenInDatabase(JsonObject tokenData, RoutingContext ctx,JsonObject userInfo, String accessToken) {
+  JsonObject document = new JsonObject()
+      .put("email", userInfo.getString("email"))
+      .put("userInfo", userInfo)
+      .put("accessToken", tokenData.getString("access_token"))
+      .put("refreshToken", tokenData.getString("refresh_token"))
+      .put("expiresIn", tokenData.getLong("expires_in"))
+      .put("expiresAt", System.currentTimeMillis() + (tokenData.getLong("expires_in") * 1000));
+
+       oauthMongoClient.save("tokens", document, res -> {
+        if (res.succeeded()) {
+            ctx.response()
+
+            .putHeader("Location", "http://localhost:3001/profile?email="+userInfo+"&accT"+tokenData.getString("access_token")+"&accesstok"+accessToken)
+            .setStatusCode(302)
+          .end();
+        } else {
+            ctx.response()
+              .setStatusCode(500)
+              .end("Failed to save token data: " + res.cause().getMessage());
+        }
+    });
+}
+
+
+private void updateAccessTokenInDatabase(JsonObject tokenData, RoutingContext ctx, JsonObject userInfo, String accessToken) {
+  JsonObject query = new JsonObject().put("email", "shikharapagadala17@gmail.com");
+  JsonObject update = new JsonObject()
+      .put("$set", new JsonObject()
+          .put("accessToken", tokenData.getString("access_token"))
+          .put("expiresIn", tokenData.getLong("expires_in"))
+          .put("expiresAt", System.currentTimeMillis() + (tokenData.getLong("expires_in") * 1000)));
+
+  oauthMongoClient.updateCollection("tokens", query, update, res -> {
+      if (res.succeeded()) {
+          ctx.response()
+              .putHeader("Content-Type", "application/json")
+              .end(new JsonObject().put("success", true).encode());
+      } else {
+          ctx.response()
+              .setStatusCode(500)
+              .end("Failed to update refresh token: " + res.cause().getMessage());
+      }
+  });
+}
+
+  private void handleOAuthCallback(io.vertx.ext.web.RoutingContext ctx) {
+    String code = ctx.request().getParam("code");
+    if (code == null) {
+        ctx.response().end("No authorization code provided");
+        return;
+    }
+    exchangeCodeForToken(code, ctx);
+  }
+
+  private void exchangeCodeForToken(String code, RoutingContext ctx) {
+    WebClient webClient = WebClient.create(vertx);
+    MultiMap formData = MultiMap.caseInsensitiveMultiMap();
+            formData.add("client_id", "821706558807-q9aj30q47rqjb2876isgcjk68jsii830.apps.googleusercontent.com");
+            formData.add("client_secret", "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");
+            formData.add("code", code);
+            formData.add("grant_type", "authorization_code");
+            formData.add("redirect_uri", "http://localhost:9080/auth/google/xlab");
+
+            webClient.postAbs("https://oauth2.googleapis.com/token")
+                .putHeader("Content-Type", "application/x-www-form-urlencoded")
+                .as(BodyCodec.jsonObject())  // Set BodyCodec to JsonObject
+                .sendForm(formData, ar -> {
+                    if (ar.succeeded()) {
+                        HttpResponse<JsonObject> response = ar.result();
+                        if (response.statusCode() == 200) {
+                            JsonObject responseBody = response.body();
+                            String accessToken = responseBody.getString("access_token");
+                            String refreshToken = responseBody.getString("refresh_token");
+                            String expiresIn = responseBody.getString("expires_in");
+                            String tokenType = responseBody.getString("token_type");
+
+                            fetchUserProfile( responseBody,  ctx,  responseBody.getString("access_token"),1);
+
+                            accesstok = accessToken;
+                            reftoken = refreshToken;
+                           
+                            //saveTokenData(response.body(), ctx);  
+                            //saveTokenData(dataSourceDoc);
+
+                             // Define the query to retrieve the document with ID "1"
+                              JsonObject query = new JsonObject().put("id", "1");
+
+                              // Execute the find operation
+                              oauthMongoClient.find("oauth_tokens", query, res -> {
+                                  if (res.succeeded()) {
+                                      if (!res.result().isEmpty()) {
+                                          JsonObject token1Data = res.result().get(0);
+                                          String access_token1=token1Data.getString("accessToken");
+                                          //console.log("AccessTokem"+access_token1);
+                                          
+                                      } else {
+                                          
+                                      }
+                                  } else {
+                                      System.err.println("Failed to retrieve the access token: " + res.cause().getMessage());
+                                  }
+                                  //mongoClient.close();
+                              });
+
+                            ctx.response()
+                            .putHeader("Location", "http://localhost:3001/profile?accesstoken=" + accessToken+"&refreshToken=" + refreshToken
+                            + "&expiresIn=" + expiresIn
+                            + "&tokenType=" + tokenType)
+                                .setStatusCode(302)
+                                .end();
+                          
+                        } else {
+                            ctx.response().setStatusCode(500).end("Failed to obtain access token: " + response.bodyAsString());
+                        }
+                    } else {
+                        ctx.response().setStatusCode(500).end("Token exchange failed: " + ar.cause().getMessage());
+
+                      }
+                });
+}
+
 //  /**
 //   * REMARK: Currently access control is quite limited and does not allow fine-grain per-resource access control, as
 //   * the access rules of a single service provider are currently defined by independent

@@ -61,6 +61,11 @@ dependencies {
     implementation "org.slf4j:slf4j-api:2.0.6"
     implementation "org.slf4j:slf4j-reload4j:2.0.7"
 
+    implementation 'edu.stanford.nlp:stanford-corenlp:4.5.4'
+    implementation 'edu.stanford.nlp:stanford-corenlp:4.5.4:models'
+    implementation 'org.apache.commons:commons-csv:1.10.0'
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.15.0'
+
     testFixturesAnnotationProcessor "org.immutables:value:2.9.2"
     testFixturesCompileOnly "org.immutables:builder:2.9.2"
     testFixturesCompileOnly "org.immutables:value:2.9.2"
@@ -85,3 +90,4 @@ test {
 application {
     mainClass = "nsf.vertx.App"
 }
+
