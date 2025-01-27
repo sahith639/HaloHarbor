@@ -5,7 +5,7 @@ public class CommentsData{
     public String categoryId;
     public String comment;
     public String duration;
-    public String sentiment;
+    public int sentiment;
     
     public CommentsData() {
 

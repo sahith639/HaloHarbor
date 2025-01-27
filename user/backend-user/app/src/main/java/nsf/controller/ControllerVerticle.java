@@ -390,9 +390,11 @@ public class ControllerVerticle extends AbstractVerticle {
             }
 
             logger.info("Total number of records to process = " + totalRecords.get());
+            logger.info("curent user "+ currentUserId);
+            JsonObject filter = new JsonObject().put("User ID", currentUserId);
 
             // Clear MongoDB collection before saving new records
-            mongoClient.removeDocuments("youtube", new JsonObject(), clearAr -> {
+            mongoClient.removeDocuments("youtube", filter , clearAr -> {
                 if (clearAr.succeeded()) {
                     logger.info("Cleared existing data in the 'youtube' collection.");
 
@@ -416,14 +418,14 @@ public class ControllerVerticle extends AbstractVerticle {
                         successfulResults.forEach(data -> {
                             Future<Void> saveFuture = Future.future(promise -> {
                                 JsonObject document = new JsonObject()
-                                        .put("User ID", 1)
+                                        .put("User ID", currentUserId)
                                         .put("Title of Video", data.title)
                                         .put("Description of Video", data.description)
                                         .put("Category ID", data.categoryId)
                                         .put("Comment", data.comment)
                                         .put("Sentiment", data.sentiment);
 
-                                mongoClient.insert("youtube", document, saveAr -> {
+                                mongoClient.insert(currentUserId+"/youtube", document, saveAr -> {
                                     if (saveAr.succeeded()) {
                                         logger.info("Successfully saved record for Video: " + data.title);
                                         promise.complete();
@@ -525,8 +527,11 @@ public class ControllerVerticle extends AbstractVerticle {
     }
 
   //performing sentiment analysis and categorizing the comment
-  private String sentimentAnalysis(String text) {
-    if (text == null || text.isEmpty()) return "Neutral";
+  private int sentimentAnalysis(String text) {
+    if (text == null || text.isEmpty()){
+      logger.info("Provided text is empty");
+      return 0;
+    } 
 
     // Set up Stanford CoreNLP pipeline
     Properties props = new Properties();
@@ -557,11 +562,12 @@ public class ControllerVerticle extends AbstractVerticle {
 
     // Calculate average sentiment score
     double averageSentimentScore = (double) totalSentimentScore / sentenceCount;
+    logger.info("sentement score is : Total- "+ totalSentimentScore +" Sentence - " +sentenceCount+ " average = "+averageSentimentScore);
 
     // Map average score to sentiment category
-    if (averageSentimentScore > 0) return "Positive";
-    if (averageSentimentScore == 0) return "Neutral";
-    return "Negative";
+    if (averageSentimentScore > 0) return 1;
+    if (averageSentimentScore == 0) return 0;
+    return -1;
 }
 
   private void handleLocationPost(RoutingContext context) {
