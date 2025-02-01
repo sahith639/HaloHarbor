@@ -15,6 +15,7 @@ import Login from './scenes/login';
 
 // Theme
 import { theme } from "./theme";
+import SignUp from './scenes/login/signup';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -69,6 +70,7 @@ function App() {
         <CssBaseline />
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<SignUp />} />
           
           {/* Protected Routes */}
           <Route 

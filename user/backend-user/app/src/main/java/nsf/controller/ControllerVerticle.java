@@ -94,6 +94,7 @@ public class ControllerVerticle extends AbstractVerticle {
   private ConcurrentHashMap<String, ConcurrentHashMap<Integer, String>> dataParts = new ConcurrentHashMap<>();
   private String accesstok;
   private String reftoken;
+  private MongoClient userDataMongoClient;
 
 
   /**
@@ -167,6 +168,7 @@ public class ControllerVerticle extends AbstractVerticle {
     // TODO Refactor split up into multiple handler files.
 
     router.post("/auth/login").handler(this::handleLogin);
+    router.post("/auth/signup").handler(this::handleSignUp);
     router.get("/api/secure-data").handler(this::authenticateJwt).handler(this::handleSecureData);
 
     router.get("/service-providers").handler(this::listServProvsHandler);
@@ -344,6 +346,52 @@ public class ControllerVerticle extends AbstractVerticle {
   //           context.response().setStatusCode(500).end("Failed to process file.");
   //       }
   //   }
+  private void handleSignUp(RoutingContext context){
+    JsonObject jsonBody = context.body().asJsonObject();
+    String username = jsonBody.getString("username");
+    String password = jsonBody.getString("password");
+    JsonObject signupQuery = new JsonObject().put("Username", username);
+    try{
+      mongoClient.find("users",signupQuery, findAr->{
+        if(findAr.succeeded()){
+          List<JsonObject> documents = findAr.result();
+          if(documents.size() == 0 || documents.isEmpty()){
+            JsonObject newUser = new JsonObject().put("Username", username).put("Password", password);
+            mongoClient.insert("users", newUser, addAr->{
+              if(addAr.succeeded()){
+                logger.info("New user details have been successfully added to the DB");
+                context.response().setStatusCode(200).end("User was added ");
+              }
+              else{
+                logger.info("Error while trying to add new user to the db");
+                context.response().setStatusCode(500).end("Error while trying to insert user");
+              }
+            });
+            
+          }
+          else{
+            logger.info("User already exists with the specific username");
+            context.response().setStatusCode(500).end("Provided username already exists please try another one");
+          }
+        }
+        else {
+          logger.error("Failed to fetch data from MongoDB: " + findAr.cause().getMessage());
+          context.response().setStatusCode(500).end("Failed to fetch data from MongoDB");
+        }
+  
+      });
+    }
+    catch (Exception e) {
+      logger.error("Failed to fetch users", e);
+      context.response().setStatusCode(500).end("Failed to find users.");
+    }
+
+  }
+  private void createUserDataMongoClient(String id){
+    String dname= id+"_db";
+    JsonObject conf = new JsonObject().put("connection_string", "mongodb://host.docker.internal:37017/").put("db_name",dname);
+    userDataMongoClient = MongoClient.createShared(vertx,conf,dname);
+  }
 
   private void getYTData(RoutingContext context) {
     if (context.fileUploads().isEmpty()) {
@@ -392,9 +440,10 @@ public class ControllerVerticle extends AbstractVerticle {
             logger.info("Total number of records to process = " + totalRecords.get());
             logger.info("curent user "+ currentUserId);
             JsonObject filter = new JsonObject().put("User ID", currentUserId);
+            createUserDataMongoClient(currentUserId);
 
             // Clear MongoDB collection before saving new records
-            mongoClient.removeDocuments("youtube", filter , clearAr -> {
+            userDataMongoClient.removeDocuments("youtube", filter , clearAr -> {
                 if (clearAr.succeeded()) {
                     logger.info("Cleared existing data in the 'youtube' collection.");
 
@@ -425,7 +474,7 @@ public class ControllerVerticle extends AbstractVerticle {
                                         .put("Comment", data.comment)
                                         .put("Sentiment", data.sentiment);
 
-                                mongoClient.insert(currentUserId+"/youtube", document, saveAr -> {
+                                userDataMongoClient.insert("youtube", document, saveAr -> {
                                     if (saveAr.succeeded()) {
                                         logger.info("Successfully saved record for Video: " + data.title);
                                         promise.complete();
@@ -830,6 +879,7 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
     System.out.println("messageLoki: " + message);
 
     String connId = message.getString("connection_id");
+    logger.info("User conn id" + connId);
 
     JsonObject basicMessagePackage = new JsonObject(message.getString("content"));
 
@@ -987,10 +1037,10 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
             if (user != null) {
               String userId = user.getString("userId");
               logger.info("Found user with ID: " + userId + " for connection: " + connId);
-              
+              createUserDataMongoClient(userId);
               // Query YouTube data for this specific user
-              JsonObject youtubeQuery = new JsonObject().put("userId", userId);
-              mongoClient.find("youtube", youtubeQuery, result -> {
+              JsonObject youtubeQuery = new JsonObject().put("User ID", userId);
+              userDataMongoClient.find("youtube", new JsonObject(), result -> {
                 if (result.succeeded()) {
                   List<JsonObject> documents = result.result();
                   Map<String, List<Integer>> sentimentMap = new HashMap<>();
@@ -1902,26 +1952,53 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
     JsonObject jsonBody = context.body().asJsonObject();
     String username = jsonBody.getString("username");
     String password = jsonBody.getString("password");
+    authenticateUser(username, password).onComplete(ar -> {
+      if (ar.succeeded()) {
+          boolean isAuthenticated = ar.result();
+          if (isAuthenticated) {
+              // User is authenticated
+              String accessToken = JwtUtil.generateAccessToken(username);
 
-    if (authenticateUser(username, password)) {
-        String accessToken = JwtUtil.generateAccessToken(username);
+              JsonObject responseBody = new JsonObject()
+                      .put("accessToken", accessToken);
 
-        JsonObject responseBody = new JsonObject()
-                .put("accessToken", accessToken);
-
-        context.response()
-               .putHeader("Content-Type", "application/json")
-               .end(responseBody.encode());
-    } else {
-        context.response().setStatusCode(401).end("Invalid credentials");
-    }
+              context.response()
+                    .putHeader("Content-Type", "application/json")
+                    .end(responseBody.encode());
+          } else {
+              // Authentication failed
+              context.response().setStatusCode(401).end("Invalid credentials");
+          }
+      } else {
+          // Handle the error
+          logger.info("Promise failed"+ar.cause());
+          context.response().setStatusCode(500).end("Promise failed");
+      }
+  });
   }
 
-  private boolean authenticateUser(String username, String password) {
-    // Replace this with your actual authentication logic
-    return ("user1".equals(username) && "password1".equals(password)) ||
-           ("user2".equals(username) && "password2".equals(password));
-  }
+  public Future<Boolean> authenticateUser(String username, String password) {
+    Promise<Boolean> promise = Promise.promise();
+
+    JsonObject existingUser = new JsonObject().put("Username", username);
+
+    mongoClient.findOne("users", existingUser, null, findAr -> {
+        if (findAr.succeeded()) {
+            JsonObject userData = findAr.result();
+            if (userData != null) {
+                boolean isAuthenticated = username.equals(userData.getString("Username")) && password.equals(userData.getString("Password"));
+                promise.complete(isAuthenticated);
+            } else {
+                promise.complete(false);
+            }
+        } else {
+            logger.error("Error while trying to fetch the existing User", findAr.cause());
+            promise.fail(findAr.cause());
+        }
+    });
+
+    return promise.future();
+}
 
 
 private void authenticateJwt(RoutingContext context) {
@@ -2024,6 +2101,7 @@ private void listServProvsHandler(RoutingContext ctx) {
           ReceiveInvitationFilter.builder().autoAccept(true).build());
       var oobRecord = oobRecordOptional.orElseThrow();
       String connId = String.valueOf(oobRecord.getConnectionId());
+      logger.info("User Conn ID" + connId);
 
       // waitingForPresentationReqCtxs.put(connId, ctx);
       Promise<String> presentationReqPromise = Promise.promise();

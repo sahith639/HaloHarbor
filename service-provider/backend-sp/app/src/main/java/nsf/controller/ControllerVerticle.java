@@ -319,6 +319,7 @@ public class ControllerVerticle extends AbstractVerticle {
         mongoClient.save(PARTICIPANTS_COLLECTION, document);
 
         logger.info("added participant: " + userConnectionId);
+
     }
 
     private void connectionsUpdateHandler(RoutingContext ctx){
@@ -444,6 +445,7 @@ public class ControllerVerticle extends AbstractVerticle {
 
         JsonObject query = new JsonObject()
                 .put("_id", invitationConnectionId);
+        logger.info("deleting invitation id: "+invitationConnectionId);
         mongoClient.removeDocument(INVITATIONS_COLLECTION, query)
                 .onSuccess(invitations -> {
                     try {
@@ -551,9 +553,11 @@ public class ControllerVerticle extends AbstractVerticle {
                 mongoClient.find(PARTICIPANTS_COLLECTION, new JsonObject())
                         .onSuccess(participantResults -> {
                             if (participantResults.size() > 0){
+                                computationLog = new JsonObject();
                                 for(var participant : participantResults){
                                     var connId = participant.getString("connId");
                                     logger.info("computeHandler in sp backend: " );
+                                    logger.info("Compute called for connID"+connId);
                                     sendBasicMessage(connId, "COMPUTE", new JsonObject(), null);
                                 }
                                 ctx.response().setStatusCode(200).end();
@@ -807,9 +811,13 @@ public class ControllerVerticle extends AbstractVerticle {
                 break;
             case "COMPUTE_RESPONSE":
                 {
+
                     JsonObject computeResponseData = (JsonObject)basicMessagePackage.getJsonObject("payload");
                     logger.info(computeResponseData.toString());
-                    computationLog = computeResponseData.copy();
+                    computeResponseData.getMap().forEach((key, value) -> {
+                        computationLog.put(key, value);
+                    });
+                    //computationLog = computeResponseData.copy();
                     // return computeResponseData;
                 }
             break;

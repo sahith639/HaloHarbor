@@ -67,8 +67,12 @@ const Login = () => {
           <TextField label="Password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required fullWidth />
         </Box>
         {error && <Typography color="error">{error}</Typography>}
-        <Button type="submit" variant="contained" color="primary" fullWidth>Login</Button>
+        <Button type="submit" variant="contained" color="primary" fullWidth>Sign In</Button>
       </form>
+      <Button variant="text" onClick={() => navigate("/signup")} fullWidth>
+        Don't have an account? Sign Up
+      </Button>
+
     </Box>
   );
 };
