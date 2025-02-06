@@ -37,26 +37,30 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.file.FileSystem;
 import java.util.HashMap;
 import java.util.Map;
+import nsf.util.JwtUtil;
 
 
 public class ControllerVerticle extends AbstractVerticle {
     private static final Logger logger = LoggerFactory.getLogger(ControllerVerticle.class);
     public static JsonObject computationLog = new JsonObject();
     // TODO DI
-    private final MongoClient mongoClient;
+    private final MongoClient loginMongoClient;
+    private  MongoClient mongoClient;
     private final String INVITATIONS_COLLECTION = "invitations";
     private final String PARTICIPANTS_COLLECTION = "participants";
     private final String SHARED_DATA_ITEMS_COLLECTION = "shared_data_items";
     private final String DATA_MENU_SETTINGS_COLLECTION = "data_menu_settings";
     private final AriesClient ariesClient;
+    private String addParticipantSPID;
     private ConcurrentHashMap<String, ConcurrentHashMap<Integer, String>> dataParts = new ConcurrentHashMap<>();
     Random random = new Random();
+    private String currentSPID; 
 
     private Boolean isUsingCredentials;
 
 
     public ControllerVerticle(MongoClient mongoClient, AriesClient ariesClient) {
-        this.mongoClient = mongoClient;
+        this.loginMongoClient = mongoClient;
         this.ariesClient = ariesClient;
     }
 
@@ -119,6 +123,9 @@ public class ControllerVerticle extends AbstractVerticle {
         router.post("/webhook/topic/connections").handler(this::connectionsUpdateHandler);
         router.post("/webhook/topic/out_of_band").handler(this::outOfBandHandler);
         router.post("/webhook/topic/present_proof").handler(this::presentProofUpdate);
+        router.post("/auth/login").handler(this::loginHandler);
+        router.post("/auth/signup").handler(this::signupHandler);
+        router.get("/api/secure-data").handler(this::authenticateJwt).handler(this::handleSecureData);
 
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9081"));
         HttpServerOptions options = new HttpServerOptions().setMaxFormAttributeSize(-1);
@@ -137,6 +144,16 @@ public class ControllerVerticle extends AbstractVerticle {
         logger.info("Using credentials: " + isUsingCredentials);
     }
 
+    /// For the scenario of service provider we need to make sure that all the individual service providers have individual dbs
+    /// But there has to be only one centralized sb for all the acoount managements
+    /// we need to have both centralized and decetralized storage while creating new invitation(participants) the centralized one can be used to return which servide provider the user is actually connected to and decentralized one would be used to just pass compute requests to those participants rather than goin through all the users
+
+    private MongoClient createServiceProviderMongoClient(String sid){
+        String dbname = sid+"_db";
+        JsonObject mongoConfig = new JsonObject().put("connection_string", "mongodb://host.docker.internal:27018").put("db_name",dbname);
+        return MongoClient.createShared(vertx,mongoConfig,dbname);
+    }
+
     private void getCollectedData(RoutingContext ctx){
         JsonObject allQuery = new JsonObject();
         mongoClient.find(SHARED_DATA_ITEMS_COLLECTION, allQuery, h -> {
@@ -150,6 +167,145 @@ public class ControllerVerticle extends AbstractVerticle {
         });
     }
 
+    private void loginHandler(RoutingContext context) {
+        JsonObject jsonBody = context.body().asJsonObject();
+        String username = jsonBody.getString("username");
+        String password = jsonBody.getString("password");
+        authenticateServiceProvider(username, password).onComplete(ar -> {
+          if (ar.succeeded()) {
+              boolean isAuthenticated = ar.result();
+              if (isAuthenticated) {
+                  // User is authenticated
+                  String accessToken = JwtUtil.generateAccessToken(username);
+    
+                  JsonObject responseBody = new JsonObject()
+                          .put("accessToken", accessToken);
+    
+                  context.response()
+                        .putHeader("Content-Type", "application/json")
+                        .end(responseBody.encode());
+              } else {
+                  // Authentication failed
+                  context.response().setStatusCode(401).end("Invalid credentials");
+              }
+          } else {
+              // Handle the error
+              logger.info("Promise failed"+ar.cause());
+              context.response().setStatusCode(500).end("Promise failed");
+          }
+      });
+    }
+
+    private Future<Boolean> authenticateServiceProvider(String username, String  password){
+        Promise<Boolean> promise  = Promise.promise();
+        JsonObject spQuery = new JsonObject().put("Username",username);
+        try{
+            loginMongoClient.findOne("service_providers", spQuery,null, findAr->{
+                if(findAr.succeeded()){
+                    JsonObject doc = findAr.result();
+                    if(doc!=null){
+                        String fetchedUsername = doc.getString("Username");
+                        String fetchedPassword = doc.getString("Password");
+                        if(fetchedPassword.equals(password) && fetchedUsername.equals(username)){
+                            logger.info("Provided correct credentials logging the user in ");
+                            promise.complete(true);
+                        }
+                        else{
+                            logger.info("Provided credentials do not match please provide the correct credentials");
+                            promise.complete(false);
+                        }   
+                    }
+                    else{
+                        logger.info("No service provider exists with the provided username");
+                        promise.complete(false);
+                    }
+                }
+                else{
+                    logger.info("Error while trying to fetch the existing service provider");
+                    promise.fail(findAr.cause());
+                }
+            });
+            return promise.future();
+
+        }
+        catch(Exception e){
+            logger.info("There was an error while trying to log in. Please try again later");
+            promise.fail(e.toString());
+            return promise.future();
+        }
+    }
+
+    private void signupHandler(RoutingContext context){
+        JsonObject body  = context.body().asJsonObject();
+        String username  = body.getString("username");
+        String password = body.getString("password");
+        JsonObject signupQuery = new JsonObject().put("Username", username);
+        try{
+            loginMongoClient.find("service_providers",signupQuery, findAr->{
+                if(findAr.succeeded()){
+                    List<JsonObject> docs = findAr.result();
+                    if(docs.isEmpty() || docs.size()==0 ){
+                        JsonObject newSP = new JsonObject().put("Username", username).put("Password",password);
+                        loginMongoClient.insert("service_providers",newSP, addAr ->{
+                            if(addAr.succeeded()){
+                                logger.info("New service provider has been created and added successfully to the db");
+                                context.response().setStatusCode(200).end("New service provider has been successfully created and added to the database");
+                            }
+                            else{
+                                logger.info("Failed to add new service provider please try again ");
+                                context.response().setStatusCode(500).end("Failed to add new service provider, please try again later");
+                            }
+
+                        });
+                    }
+                    else{
+                        logger.info("Service provider already exists with the given username please choose a different name");
+                        context.response().setStatusCode(500).end("Service procider already exists with the given username please select a unique username");
+                    }
+
+                }
+                else{
+                    logger.info("There was an error while trying to fetch the existing service providers");
+                    context.response().setStatusCode(500).end("There was an error while trying to fetch the existing service providers");
+                }
+            });
+        }
+        catch(Exception e){
+            logger.info("There was an error while trying to create a new service provider");
+            context.response().setStatusCode(500).end("There was an error while creating a new service provider");
+
+        }
+    }
+
+    private void authenticateJwt(RoutingContext context) {
+        String authHeader = context.request().getHeader("Authorization");
+    
+        logger.info("Received Authorization Header: {}", authHeader); // Log the received header
+    
+        if (authHeader != null && authHeader.startsWith("Bearer ")) {
+            String token = authHeader.substring(7);  // Remove "Bearer " prefix
+            logger.info("Extracted Token: {}", token); // Log the extracted token
+    
+            if (JwtUtil.validateToken(token)) {
+              currentSPID = JwtUtil.getSPIdFromToken1(token); // Extract user ID and store it
+              context.put("SP Id", currentSPID); // Store userId in the context for further use
+              logger.info("SP ID extracted: {}", currentSPID); // Log the extracted user ID
+              mongoClient = createServiceProviderMongoClient(currentSPID);
+              context.next();  // Proceed to the next handler
+            } else {
+                logger.warn("Invalid or expired token provided."); // Log warning for invalid token
+                context.response().setStatusCode(401).end("Invalid or expired token");
+            }
+        } else {
+            logger.warn("Authorization header is missing or invalid."); // Log warning for missing header
+            context.response().setStatusCode(401).end("Authorization header missing or invalid");
+        }
+    }
+    
+      private void handleSecureData(RoutingContext context) {
+        context.response().putHeader("Content-Type", "application/json")
+               .end("{\"message\":\"This is protected data.\"}");
+      }
 
     private void setDataMenuSettings(RoutingContext ctx){
         var newDataMenuSettings = ctx.body().asJsonObject();
@@ -306,19 +462,63 @@ public class ControllerVerticle extends AbstractVerticle {
     /**
      * Adds a verified participant.
      */
-    private void addParticipant(String userConnectionId) throws IOException {
+    private Future<String> addParticipant(String userConnectionId) throws IOException {
         var connectionOptional = ariesClient.connectionsGetById(userConnectionId);
         var connection = connectionOptional.orElseThrow();
         var invitationKey = connection.getInvitationKey();
-
+        addParticipantSPID = "";
+        Promise<String> promise = Promise.promise();
         JsonObject document = new JsonObject()
             .put("_id", userConnectionId)
             .put("connId", userConnectionId)
             .put("createdAt", Instant.now().getEpochSecond())
             .put("invitationKey", invitationKey);
-        mongoClient.save(PARTICIPANTS_COLLECTION, document);
+        
+        FindSPID(invitationKey).onComplete(ar->{
+            if(ar.succeeded()){
+                String serviceProvID = ar.result();
+                addParticipantSPID = serviceProvID;
+                MongoClient mClient = createServiceProviderMongoClient(serviceProvID);
+                mClient.save(PARTICIPANTS_COLLECTION, document, h->{
+                    if(h.succeeded()){
+                        logger.info("added participant: " + userConnectionId+ "For sp "+ serviceProvID);
+                        mClient.close();
+                        promise.complete(addParticipantSPID);
+                    }
+                    else{
+                        logger.info("Failed to add participant "+h.cause());
+                        mClient.close();
+                        promise.fail(h.cause());
+                    }
+                });                
+            }
+            else{
+                logger.info("Promise failed"+ar.cause());
+                promise.fail(ar.cause());
+            }
 
-        logger.info("added participant: " + userConnectionId);
+        });
+        return promise.future();    
+
+    }
+
+    //used to find the service provider id from the inivitation key which is used to query the centralized invites database
+    private Future<String> FindSPID(String id){
+        Promise<String> promise = Promise.promise();
+        JsonObject existingInvite = new JsonObject().put("invitationKey", id);
+        loginMongoClient.findOne("centralized_invitations", existingInvite, null, findAr -> {
+            if(findAr.succeeded()){
+                JsonObject inviteData = findAr.result();
+                promise.complete(inviteData.getString("spID"));
+
+            }
+            else{
+                logger.info("Failed while trying to fetch the existing SP detailes"+ findAr.cause());
+                promise.fail(findAr.cause());
+            }
+
+        });
+        return promise.future();
 
     }
 
@@ -351,22 +551,42 @@ public class ControllerVerticle extends AbstractVerticle {
                         .build())
                     .build());
 
-
-                JsonObject serverBannerData = new JsonObject()
-                    .put("name", "Demo Service Provider")
-                    .put("desc", "Example service provider for M.S. project prototype implementation demo. Requires demo credential to connect.");
-                sendBasicMessage(userConnectionId, "CONN_RESPONSE",
-                    new JsonObject()
-                        .put("bannerData", serverBannerData)
-                        .put("requiresCredential", isUsingCredentials),
-                    null);
-
                 if (isUsingCredentials){
+                    JsonObject serverBannerData = new JsonObject()
+                    .put("name", addParticipantSPID)
+                    .put("desc", "Example service provider for M.S. project prototype implementation demo. Requires demo credential to connect.");
+                    logger.info("Getting executed first");
+                    sendBasicMessage(userConnectionId, "CONN_RESPONSE",
+                        new JsonObject()
+                            .put("bannerData", serverBannerData)
+                            .put("requiresCredential", isUsingCredentials),
+                        null);
 
                 }
                 else{
-                    addParticipant(userConnectionId);
+                    //changed the add participant method to return a promise containing the latest service provider as it is required to send back SP name
+                    addParticipant(userConnectionId).onComplete(ar ->{
+                        if(ar.succeeded()){
+                            addParticipantSPID = ar.result();
+                            logger.info("Getting executed after sending message");
+                            JsonObject serverBannerData = new JsonObject()
+                            .put("name", addParticipantSPID)
+                            .put("desc", "Example service provider for M.S. project prototype implementation demo. Requires demo credential to connect.");
+                            logger.info("Getting executed first");
+                            sendBasicMessage(userConnectionId, "CONN_RESPONSE",
+                                new JsonObject()
+                                    .put("bannerData", serverBannerData)
+                                    .put("requiresCredential", isUsingCredentials),
+                                null);
+                        }
+                        else{
+                            logger.info("Partcipant could not get added");
+                            addParticipantSPID = "";
+                        }
+                    });
                 }
+
+                
 
             }
 
@@ -446,6 +666,7 @@ public class ControllerVerticle extends AbstractVerticle {
         JsonObject query = new JsonObject()
                 .put("_id", invitationConnectionId);
         logger.info("deleting invitation id: "+invitationConnectionId);
+        loginMongoClient.removeDocument("centralized_invitations",query);
         mongoClient.removeDocument(INVITATIONS_COLLECTION, query)
                 .onSuccess(invitations -> {
                     try {
@@ -486,9 +707,9 @@ public class ControllerVerticle extends AbstractVerticle {
                     .put("name", name)
                     .put("createdAt", Instant.now().getEpochSecond())
                     .put("url", url)
-                    .put("userId", ""); // Add userId field with an empty string
+                    .put("spID", currentSPID); // Add userId field with an empty string
 
-
+            loginMongoClient.save("centralized_invitations",document);
             mongoClient.save(INVITATIONS_COLLECTION, document, h -> {
                 if (h.succeeded()){
                     ctx.response().send(document.encode());
