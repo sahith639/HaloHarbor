@@ -19,7 +19,7 @@ const TrainingPage = () => {
 
       fetch(url, {
         method: 'GET',
-        mode: 'cors',
+        mode: 'no-cors',
         headers: {
           'Content-Type': 'application/json'
         }
@@ -43,7 +43,7 @@ const TrainingPage = () => {
       var url = 'http://localhost:4500/get-logs'
       let data = await fetch(url, {
         method: 'GET',
-        mode: 'cors',
+        mode: 'no-cors',
         headers: {
           'Content-Type': 'application/json'
         }

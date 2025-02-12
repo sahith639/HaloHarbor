@@ -1004,7 +1004,7 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
             JsonObject completeData = new JsonObject().put("completeData", fullContent.toString());
 
             WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
-            webClient.post(4600, "localhost", "/train")
+            webClient.post(4600, "flclient", "/train")
                 .sendJsonObject(completeData)
                 .onSuccess(res -> logger.info("Payload sent successfully"))
                 .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));

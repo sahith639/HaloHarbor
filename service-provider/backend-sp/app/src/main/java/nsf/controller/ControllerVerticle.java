@@ -792,7 +792,6 @@ public class ControllerVerticle extends AbstractVerticle {
                         });
         }
 
-
     
     private void trainHandler(RoutingContext ctx) {
     //     try{
@@ -1016,7 +1015,7 @@ public class ControllerVerticle extends AbstractVerticle {
                         JsonObject completeData = new JsonObject().put("completeData", fullContent.toString());
 
                         WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
-                        webClient.post(4500, "localhost", "/response") 
+                        webClient.post(4500, "flserver", "/response") 
                             .sendJsonObject(completeData)
                             .onSuccess(res -> logger.info("Payload sent successfully"))
                             .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));

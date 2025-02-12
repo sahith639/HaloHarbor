@@ -18,6 +18,7 @@ from sklearn.preprocessing import normalize
 import requests
 import io
 import json
+from flask_cors import CORS, cross_origin
 
 def save_client_updates(model, client_id, additional_info=None):
   client_updates = {"weights": model.get_weights()}
@@ -78,6 +79,9 @@ def trainClient(client_id,epochs):
 
 
 app = Flask(__name__)
+cors = CORS(app)
+app.config['CORS_HEADERS'] = 'Content-Type'
+
 @app.route("/train", methods=['POST'])
 def run():
     
@@ -99,7 +103,7 @@ def run():
     trainClient(data['client_id'],int(data['epochs']))
     print("Sending Response", data['client_id'])
 
-    url = 'http://localhost:9080/train-response'
+    url = 'http://host.docker.internal:9080/train-response'
     with open(f"./client_{data['client_id']}_update.pkl", 'rb') as file:
             loaded_data = pickle.load(file)  # Prepare the file to be sent in the POST request
             response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':data['client_id'],'epochs':data['epochs']}})  # Send the POST request
