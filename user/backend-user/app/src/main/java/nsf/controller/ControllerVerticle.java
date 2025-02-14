@@ -296,7 +296,8 @@ public class ControllerVerticle extends AbstractVerticle {
 
         webClient.postAbs(tokenUrl)
                 .basicAuthentication(clientId, clientSecret)
-                //.putHeader("Content-Type", "application/x-www-form-urlencoded") // ✅ Correct content type
+                .putHeader("Content-Type", "application/x-www-form-urlencoded")
+                .putHeader("Content-Length", String.valueOf(form.toString().length()))
                 .sendForm(form, ar -> {
                     if (ar.succeeded()) {
                         HttpResponse<Buffer> response = ar.result();
