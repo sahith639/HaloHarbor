@@ -3,6 +3,7 @@ import io.vertx.core.AbstractVerticle;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.client.predicate.ResponsePredicate;
 import io.vertx.ext.web.handler.BodyHandler;
 import nsf.util.JwtUtil;
 import nsf.util.*;
@@ -115,6 +116,22 @@ public class ControllerVerticle extends AbstractVerticle {
   private final Map<String, RoutingContext> waitingForSharedDataAckCtx = new ConcurrentHashMap<>();
   private final Map<String, Promise<JsonObject>> waitingForConnResponse = new ConcurrentHashMap<>();
 
+    private String clientId = "9WfA7mcX0FFYkHD5a_7RUg";
+    private String clientSecret = "H_TsrD-Eoa4cqTr6XYVnPOvIXvK-KQ";
+    private String redirectUri = "http://localhost:9080/oauth/reddit/callback";
+    private String tokenUrl = "https://www.reddit.com/api/v1/access_token";
+    private String authUrl = "https://www.reddit.com/api/v1/authorize";
+    private String accessToken = null;
+    private String userName = null;
+
+    private String spotifyClientId = "bdeca1b0168b4dcfb8f69148dbeb41da";
+    private String spotifyClientSecret = "1f0ce4a445fc4bde9a89d602e4dd30db";
+    private String spotifyTokenUrl = "https://accounts.spotify.com/api/token";
+    private String spotifyAuthUrl = "https://accounts.spotify.com/authorize";
+    private String spotifyRedirectUri = "http://localhost:9080/oauth/spotify/callback";
+    private String spotifyAccessToken;
+    private WebClient webClient;
+
 
   Random random = new Random();
 
@@ -131,6 +148,7 @@ public class ControllerVerticle extends AbstractVerticle {
   @Override
   public void start(Promise<Void> promise) {
     Router router = Router.router(vertx);
+      webClient = WebClient.create(vertx);
 //    router.route().handler(CorsHandler.create("*")
 //        .allowedMethod(HttpMethod.GET)
 //        .allowedMethod(HttpMethod.POST)
@@ -219,6 +237,27 @@ public class ControllerVerticle extends AbstractVerticle {
     router.post("/api/location").handler(this::handleLocationPost);
     router.post("/api/yt").handler(this::getYTData);
 
+    //DataPlug
+
+//      router.get("/").handler(ctx -> ctx.response().end("Index Page"));
+      router.get("/oauth/reddit/fetchSavedPosts").handler(ctx -> fetchData(ctx, "http://localhost:9080/oauth/reddit/savedPosts"));
+      router.get("/oauth/reddit/upVotedPosts").handler(ctx -> fetchData(ctx, "http://localhost:9080/oauth/reddit/upVoted"));
+      router.get("/oauth/reddit/downVotedPosts").handler(ctx -> fetchData(ctx, "http://localhost:9080/oauth/reddit/downVoted"));
+      router.get("/oauth/spotify/getTopArt").handler(ctx -> fetchData(ctx, "http://localhost:9080/oauth/spotify/getTopArtists"));
+      router.get("/oauth/spotify/getPlaylists").handler(ctx -> fetchData(ctx, "http://localhost:9080/oauth/spotify/getUserPlaylists"));
+
+      router.get("/oauth/reddit/login").handler(this::redirectToReddit);
+      router.get("/oauth/reddit/callback").handler(this::getToken);
+      router.get("/oauth/reddit/savedPosts").handler(this::getUserSavedPosts);
+      router.get("/oauth/reddit/upVoted").handler(this::getUserUpVotedPosts);
+      router.get("/oauth/reddit/downVoted").handler(this::getUserDownVotedPosts);
+
+      router.get("/oauth/spotify/login").handler(this::redirectToSpotify);
+      router.get("/oauth/spotify/callback").handler(this::getSpotifyToken);
+      router.get("/oauth/spotify/getTopArtists").handler(this::getUserTopArtists);
+      router.get("/oauth/spotify/getUserPlaylists").handler(this::getUserSavedPlaylists);
+
+
     userSettings = new JsonObject().put("0",true).put("1",true).put("2",true);
     int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9080"));
     vertx.createHttpServer()
@@ -231,6 +270,176 @@ public class ControllerVerticle extends AbstractVerticle {
         })
         .onFailure(promise::fail);
   }
+
+    private void redirectToReddit(RoutingContext ctx) {
+        String url = authUrl + "?client_id=" + clientId +
+                "&response_type=code" +
+                "&state=random_string" +
+                "&redirect_uri=" + redirectUri +
+                "&duration=permanent" +
+                "&scope=identity history read";
+        ctx.response().setStatusCode(302).putHeader("Location", url).end();
+    }
+
+    private void getToken(RoutingContext ctx) {
+        String code = ctx.request().getParam("code");
+        System.out.println("code:: " + code);
+        if (code == null) {
+            ctx.response().setStatusCode(400).end("Missing authorization code");
+            return;
+        }
+
+        MultiMap form = MultiMap.caseInsensitiveMultiMap();
+        form.add("grant_type", "authorization_code");
+        form.add("code", code);
+        form.add("redirect_uri", redirectUri);
+
+        webClient.postAbs(tokenUrl)
+                .basicAuthentication(clientId, clientSecret)
+                //.putHeader("Content-Type", "application/x-www-form-urlencoded") // ✅ Correct content type
+                .sendForm(form, ar -> {
+                    if (ar.succeeded()) {
+                        HttpResponse<Buffer> response = ar.result();
+                        System.out.println("response body:: " + response.bodyAsString());
+                        JsonObject responseBody = response.bodyAsJsonObject();
+                        accessToken = responseBody.getString("access_token");
+                        System.out.println("accessToken:: " + accessToken);
+                        ctx.response().setStatusCode(302).putHeader("Location", "http://localhost:3001/profile").end();
+                    } else {
+                        ctx.response().setStatusCode(400).end("OAuth failed");
+                    }
+                });
+    }
+
+
+    private void getUserSavedPosts(RoutingContext ctx) {
+        if (!checkAuthorization(ctx)) return;
+        String url = "https://oauth.reddit.com/user/" + userName + "/saved";
+        fetchData(ctx, url);
+    }
+
+    private void getUserUpVotedPosts(RoutingContext ctx) {
+        if (!checkAuthorization(ctx)) return;
+        String url = "https://oauth.reddit.com/user/" + userName + "/upvoted";
+        fetchData(ctx, url);
+    }
+
+    private void getUserDownVotedPosts(RoutingContext ctx) {
+        if (!checkAuthorization(ctx)) return;
+        String url = "https://oauth.reddit.com/user/" + userName + "/downvoted";
+        fetchData(ctx, url);
+    }
+
+    private boolean checkAuthorization(RoutingContext ctx) {
+        if (accessToken == null) {
+            ctx.response().setStatusCode(401).end("{\"error\": \"Access token is null\"}");
+            return false;
+        }
+
+        if (userName == null) {
+            String url = "https://oauth.reddit.com/api/v1/me";
+            webClient.getAbs(url)
+                    .bearerTokenAuthentication(accessToken)
+                    .send(ar -> {
+                        if (ar.succeeded()) {
+                            JsonObject responseBody = ar.result().bodyAsJsonObject();
+                            userName = responseBody.getString("name");
+                            System.out.println("UserName:: " + userName);
+                        }
+                    });
+        }
+        return true;
+    }
+
+    private void fetchData(RoutingContext ctx, String url) {
+        webClient.getAbs(url)
+                .bearerTokenAuthentication(accessToken)
+                .send(ar -> {
+                    if (ar.succeeded()) {
+                        ctx.response().putHeader("Content-Type", "application/json")
+                                .end(ar.result().bodyAsJsonObject().encodePrettily());
+                    } else {
+                        ctx.response().setStatusCode(500).end("{\"error\": \"Failed to fetch data\"}");
+                    }
+                });
+    }
+
+    private void redirectToSpotify(RoutingContext ctx) {
+        String url = spotifyAuthUrl + "?client_id=" + spotifyClientId +
+                "&response_type=code" +
+                "&state=random_string" +
+                "&redirect_uri=" + spotifyRedirectUri +
+                "&scope=user-library-read user-top-read playlist-read-private";
+
+        ctx.response().setStatusCode(302).putHeader(HttpHeaders.LOCATION, url).end();
+    }
+
+    private void getSpotifyToken(RoutingContext ctx) {
+        String code = ctx.request().getParam("code");
+        System.out.println("code:: " + code);
+        if (code == null) {
+            ctx.response().setStatusCode(400).end("Missing authorization code");
+            return;
+        }
+
+        MultiMap form = MultiMap.caseInsensitiveMultiMap();
+        form.add("grant_type", "authorization_code");
+        form.add("code", code);
+        form.add("redirect_uri", spotifyRedirectUri);
+
+        webClient.postAbs(spotifyTokenUrl)
+                .basicAuthentication(spotifyClientId, spotifyClientSecret)
+                .putHeader("Content-Type", "application/x-www-form-urlencoded") // ✅ Correct content type
+                .sendForm(form, ar -> {  // ✅ Send form instead of JSON
+                    if (ar.succeeded()) {
+                        HttpResponse<Buffer> response = ar.result();
+                        System.out.println("response body:: " + response.bodyAsString());
+                        JsonObject responseBody = response.bodyAsJsonObject();
+                        spotifyAccessToken = responseBody.getString("access_token");
+                        System.out.println("accessToken:: " + spotifyAccessToken);
+                        ctx.response().setStatusCode(302).putHeader("Location", "http://localhost:3001/profile").end();
+                    } else {
+                        ctx.response().setStatusCode(400).end("OAuth failed");
+                    }
+                });
+    }
+
+
+    private void getUserTopArtists(RoutingContext ctx) {
+        if (spotifyAccessToken == null) {
+            ctx.response().setStatusCode(401).end("Unauthorized");
+            return;
+        }
+
+        webClient.getAbs("https://api.spotify.com/v1/me/top/artists")
+                .putHeader("Authorization", "Bearer " + spotifyAccessToken)
+                .expect(ResponsePredicate.SC_OK)
+                .send(ar -> {
+                    if (ar.succeeded()) {
+                        ctx.response().putHeader("Content-Type", "application/json").end(ar.result().bodyAsString());
+                    } else {
+                        ctx.response().setStatusCode(400).end("Failed to fetch top artists");
+                    }
+                });
+    }
+
+    private void getUserSavedPlaylists(RoutingContext ctx) {
+        if (spotifyAccessToken == null) {
+            ctx.response().setStatusCode(401).end("Unauthorized");
+            return;
+        }
+
+        webClient.getAbs("https://api.spotify.com/v1/me/playlists")
+                .putHeader("Authorization", "Bearer " + spotifyAccessToken)
+                .expect(ResponsePredicate.SC_OK)
+                .send(ar -> {
+                    if (ar.succeeded()) {
+                        ctx.response().putHeader("Content-Type", "application/json").end(ar.result().bodyAsString());
+                    } else {
+                        ctx.response().setStatusCode(400).end("Failed to fetch playlists");
+                    }
+                });
+    }
 
   // would be useful in future if there's a plan to include third party data providers
   // private void getWatchHistory(RoutingContext ctx)
