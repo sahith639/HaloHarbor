@@ -240,11 +240,20 @@ public class ControllerVerticle extends AbstractVerticle {
     //DataPlug
 
 //      router.get("/").handler(ctx -> ctx.response().end("Index Page"));
-      router.get("/oauth/reddit/fetchSavedPosts").handler(ctx -> fetchData(ctx, "http://localhost:9080/oauth/reddit/savedPosts"));
-      router.get("/oauth/reddit/upVotedPosts").handler(ctx -> fetchData(ctx, "http://localhost:9080/oauth/reddit/upVoted"));
-      router.get("/oauth/reddit/downVotedPosts").handler(ctx -> fetchData(ctx, "http://localhost:9080/oauth/reddit/downVoted"));
-      router.get("/oauth/spotify/getTopArt").handler(ctx -> fetchData(ctx, "http://localhost:9080/oauth/spotify/getTopArtists"));
-      router.get("/oauth/spotify/getPlaylists").handler(ctx -> fetchData(ctx, "http://localhost:9080/oauth/spotify/getUserPlaylists"));
+      //router.get("/oauth/reddit/fetchSavedPosts").handler(ctx -> fetchData(ctx, "http://localhost:9080/oauth/reddit/savedPosts"));
+      router.get("/oauth/reddit/fetchSavedPosts").handler(this::getUserSavedPosts);
+
+      //router.get("/oauth/reddit/upVotedPosts").handler(ctx -> fetchData(ctx, "http://localhost:9080/oauth/reddit/upVoted"));
+      router.get("/oauth/reddit/upVotedPosts").handler(this::getUserUpVotedPosts);
+
+      //router.get("/oauth/reddit/downVotedPosts").handler(ctx -> fetchData(ctx, "http://localhost:9080/oauth/reddit/downVoted"));
+      router.get("/oauth/reddit/downVotedPosts").handler(this::getUserDownVotedPosts);
+
+      //router.get("/oauth/spotify/getTopArt").handler(ctx -> fetchData(ctx, "http://localhost:9080/oauth/spotify/getTopArtists"));
+      router.get("/oauth/spotify/getTopArt").handler(this::getUserTopArtists);
+
+      //router.get("/oauth/spotify/getPlaylists").handler(ctx -> fetchData(ctx, "http://localhost:9080/oauth/spotify/getUserPlaylists"));
+      router.get("/oauth/spotify/getPlaylists").handler(this::getUserSavedPlaylists);
 
       router.get("/oauth/reddit/login").handler(this::redirectToReddit);
       router.get("/oauth/reddit/callback").handler(this::getToken);
@@ -305,7 +314,7 @@ public class ControllerVerticle extends AbstractVerticle {
                         JsonObject responseBody = response.bodyAsJsonObject();
                         accessToken = responseBody.getString("access_token");
                         System.out.println("accessToken:: " + accessToken);
-                        ctx.response().setStatusCode(302).putHeader("Location", "http://localhost:3001/profile").end();
+                        ctx.response().setStatusCode(302).putHeader("Location", "http://localhost:3001/oauth").end();
                     } else {
                         ctx.response().setStatusCode(400).end("OAuth failed");
                     }
@@ -398,7 +407,7 @@ public class ControllerVerticle extends AbstractVerticle {
                         JsonObject responseBody = response.bodyAsJsonObject();
                         spotifyAccessToken = responseBody.getString("access_token");
                         System.out.println("accessToken:: " + spotifyAccessToken);
-                        ctx.response().setStatusCode(302).putHeader("Location", "http://localhost:3001/profile").end();
+                        ctx.response().setStatusCode(302).putHeader("Location", "http://localhost:3001/oauth").end();
                     } else {
                         ctx.response().setStatusCode(400).end("OAuth failed");
                     }
