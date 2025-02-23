@@ -138,7 +138,7 @@ def run():
     additional_info = {"learning_rate": 0.01}
     save_global_updates(global_model, additional_info)
     final_model = federated_training(global_model)
-    return final_model, 200
+    return jsonify({"message": "OK"}), 200
 
 
 @app.route("/get-logs")
@@ -146,7 +146,7 @@ def run():
 def log():
     global logs
     data = {'value': '\n'.join(logs), 'code': 'SUCCESS'}
-    return make_response(jsonify(data), 201)
+    return make_response(jsonify(data), 200)
 
 
 @app.route("/response", methods=['POST'])

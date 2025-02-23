@@ -19,7 +19,6 @@ const TrainingPage = () => {
 
       fetch(url, {
         method: 'GET',
-        mode: 'no-cors',
         headers: {
           'Content-Type': 'application/json'
         }
@@ -28,7 +27,7 @@ const TrainingPage = () => {
         if (!response.ok) {
           throw new Error('Network response was not ok');
         }
-        console.log('Response:', response.text());
+        console.log('Response:', response.json());
       })
       .then(data => {
         console.log('Success:', data);
@@ -41,17 +40,20 @@ const TrainingPage = () => {
     const handleRefreshStatusButtonClick = async () => {
       //var url = 'http://host.docker.internal:4500/get-logs'
       var url = 'http://localhost:4500/get-logs'
-      let data = await fetch(url, {
-        method: 'GET',
-        mode: 'no-cors',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }).then(response => {
-        return response.json(); // This returns a Promise
-      })
-      console.log(data)
-      setLog(data['value'])
+      try {
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+        const data = await response.json();
+        console.log(data);
+        setLog(data['value']);
+      } catch (error) {
+        console.error('Error:', error);
+        setLog('Error fetching logs');
+      }
     };
     return (
       <Box sx = {{color: "F8F8F8"}}>
@@ -75,9 +77,3 @@ const TrainingPage = () => {
 }
 
 export default TrainingPage
-
-            {/* <Box height="250px">
-              <div style={{ paddingLeft:"50px", paddingRight:"10px", height:"300px", width:"300px"}}>
-                  <Donut />
-                </div>
-            </Box> */}
