@@ -53,6 +53,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.file.FileSystem;
@@ -365,13 +366,93 @@ public class ControllerVerticle extends AbstractVerticle {
         webClient.getAbs(url)
                 .bearerTokenAuthentication(accessToken)
                 .send(ar -> {
-                    if (ar.succeeded()) {
+                    if(ar.succeeded()) {
+                        try {
+                            String responseBody = ar.result().bodyAsString();
+                            System.out.println("Response body:: " + responseBody);
+                            //String filteredJson = filterJson(responseBody);
+                            Map<String,Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
+                            ctx.response().putHeader("Content-Type", "application/json")
+                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(fetchRedditData(result)));
+                                    //.end(.toString());
+
+                        } catch (Exception e) {
+                            ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process data\"}");
+                        }
+                    }else{
+                        ctx.response().setStatusCode(500).end("{\"error\": \"Failed to fetch data\"}");
+                    }
+                    /**if (ar.succeeded()) {
                         ctx.response().putHeader("Content-Type", "application/json")
                                 .end(ar.result().bodyAsJsonObject().encodePrettily());
                     } else {
                         ctx.response().setStatusCode(500).end("{\"error\": \"Failed to fetch data\"}");
-                    }
+                    }*/
                 });
+    }
+
+    private static List<Map<String,Object>> fetchSpotifyData(Map<String,Object> map){
+        List<Map<String,Object>> list=new ArrayList<>();
+        AtomicReference<Map<String, Object>> result = new AtomicReference<>();
+
+        List<Map<String,Object>> data = (List<Map<String,Object>>) map.get("items");
+        data.forEach(a->{
+            result.set(new HashMap<>());
+            result.get().put("type", a.get("type"));
+            result.get().put("name", a.get("name"));
+            result.get().put("popularity", a.get("popularity"));
+            result.get().put("uri", a.get("uri"));
+            List<Map<String,Object>> images = (List<Map<String, Object>>) a.get("images");
+            result.get().put("imageURL", images.get(0).get("url"));
+            result.get().put("totalFollowers", ((Map<String,Object>) a.get("followers")).get("total").toString());
+            list.add(result.get());
+        });
+        System.out.println(list);
+        return list;
+    }
+
+    private static List<Map<String,Object>> fetchSpotifyDataPlaylists(Map<String,Object> map){
+        List<Map<String,Object>> list=new ArrayList<>();
+        AtomicReference<Map<String, Object>> result = new AtomicReference<>();
+
+        List<Map<String,Object>> data = (List<Map<String,Object>>) map.get("items");
+        data.forEach(a->{
+            result.set(new HashMap<>());
+            result.get().put("totalPlayLists", map.get("total"));
+            result.get().put("collaborative", a.get("collaborative"));
+            result.get().put("name", a.get("name"));
+            result.get().put("type", a.get("type"));
+            result.get().put("public", a.get("public"));
+            result.get().put("ownerName", ((Map<String,Object>) a.get("owner")).get("display_name"));
+            result.get().put("totalTracks", ((Map<String,Object>) a.get("tracks")).get("total").toString());
+            list.add(result.get());
+        });
+//        System.out.println(list);
+        return list;
+    }
+
+    private static List<Map<String,Object>> fetchRedditData(Map<String,Object> map){
+        System.out.println("fetchRedditData.Map: "+ map);
+        List<Map<String,Object>> list=new ArrayList<>();
+        AtomicReference<Map<String, Object>> result = new AtomicReference<>();
+        Map<String,Object> data = (Map<String,Object>) map.get("data");
+        List<Map<String,Object>> children = (List<Map<String,Object>>) data.get("children");
+        children.forEach(stringObjectMap -> {
+            Map<String,Object> child = (Map<String,Object>) stringObjectMap.get("data");
+            result.set(new HashMap<>());
+            result.get().put("selftext", child.get("selftext"));
+            result.get().put("title", child.get("title"));
+            result.get().put("name", child.get("name"));
+            result.get().put("subreddit_type", child.get("subreddit_type"));
+            result.get().put("thumbnail", child.get("thumbnail"));
+            result.get().put("url", child.get("url"));
+            result.get().put("subreddit_id", child.get("subreddit_id"));
+            result.get().put("id", child.get("id"));
+            result.get().put("author", child.get("author"));
+            list.add(result.get());
+        });
+        System.out.println(list);
+        return list;
     }
 
     private void redirectToSpotify(RoutingContext ctx) {
@@ -425,11 +506,27 @@ public class ControllerVerticle extends AbstractVerticle {
                 .putHeader("Authorization", "Bearer " + spotifyAccessToken)
                 .expect(ResponsePredicate.SC_OK)
                 .send(ar -> {
-                    if (ar.succeeded()) {
+                    if(ar.succeeded()) {
+                        try {
+                            String responseBody = ar.result().bodyAsString();
+                            System.out.println("Spotify Response body:: " + responseBody);
+                            //String filteredJson = filterJson(responseBody);
+                            Map<String,Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
+                            ctx.response().putHeader("Content-Type", "application/json")
+                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(fetchSpotifyData(result)));
+                            //.end(.toString());
+
+                        } catch (Exception e) {
+                            ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process data\"}");
+                        }
+                    }else{
+                        ctx.response().setStatusCode(500).end("{\"error\": \"Failed to fetch data\"}");
+                    }
+                    /**if (ar.succeeded()) {
                         ctx.response().putHeader("Content-Type", "application/json").end(ar.result().bodyAsString());
                     } else {
                         ctx.response().setStatusCode(400).end("Failed to fetch top artists");
-                    }
+                    }*/
                 });
     }
 
@@ -443,11 +540,25 @@ public class ControllerVerticle extends AbstractVerticle {
                 .putHeader("Authorization", "Bearer " + spotifyAccessToken)
                 .expect(ResponsePredicate.SC_OK)
                 .send(ar -> {
-                    if (ar.succeeded()) {
+                    if(ar.succeeded()) {
+                        try {
+                            String responseBody = ar.result().bodyAsString();
+                            System.out.println("Spotify Response body:: " + responseBody);
+                            //String filteredJson = filterJson(responseBody);
+                            Map<String,Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
+                            ctx.response().putHeader("Content-Type", "application/json")
+                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(fetchSpotifyDataPlaylists(result)));
+                        } catch (Exception e) {
+                            ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process data\"}");
+                        }
+                    }else{
+                        ctx.response().setStatusCode(500).end("{\"error\": \"Failed to fetch data\"}");
+                    }
+                    /**if (ar.succeeded()) {
                         ctx.response().putHeader("Content-Type", "application/json").end(ar.result().bodyAsString());
                     } else {
                         ctx.response().setStatusCode(400).end("Failed to fetch playlists");
-                    }
+                    }*/
                 });
     }
 
