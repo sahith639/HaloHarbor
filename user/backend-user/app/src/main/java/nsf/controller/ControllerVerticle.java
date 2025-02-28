@@ -6,7 +6,6 @@ import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.client.predicate.ResponsePredicate;
 import io.vertx.ext.web.handler.BodyHandler;
 import nsf.util.JwtUtil;
-import nsf.util.*;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
@@ -17,23 +16,15 @@ import io.netty.handler.codec.http.QueryStringDecoder;
 import io.vertx.core.*;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpMethod;
-import io.vertx.core.http.HttpServerOptions; //add
-import io.vertx.core.json.Json;
 import io.vertx.core.json.JsonArray;
-import io.vertx.core.json.JsonObject;
 import io.vertx.ext.mongo.MongoClient;
 import io.vertx.ext.mongo.MongoClientDeleteResult;
-import io.vertx.ext.web.Router;
-import io.vertx.ext.web.RoutingContext;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.WebClientOptions;
 import io.vertx.ext.web.codec.BodyCodec;
-import io.vertx.ext.web.handler.BodyHandler;
 import nsf.access.*;
 import org.hyperledger.acy_py.generated.model.SendMessage;
 import org.hyperledger.aries.AriesClient;
-import org.hyperledger.aries.api.connection.ConnectionReceiveInvitationFilter;
-import org.hyperledger.aries.api.connection.ReceiveInvitationRequest;
 import org.hyperledger.aries.api.out_of_band.InvitationMessage;
 import org.hyperledger.aries.api.out_of_band.OOBRecord;
 import org.hyperledger.aries.api.out_of_band.ReceiveInvitationFilter;
@@ -43,7 +34,6 @@ import org.hyperledger.aries.api.present_proof.PresentationRequestCredentialsFil
 import org.hyperledger.aries.api.present_proof.SendPresentationRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import io.vertx.ext.web.FileUpload;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.DecodeException;
 import java.io.IOException;
@@ -52,15 +42,13 @@ import java.lang.reflect.Type;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
-import io.vertx.core.buffer.Buffer;
-import io.vertx.core.file.FileSystem;
 import java.util.HashMap;
 import java.util.Map;
 import io.vertx.ext.web.client.HttpResponse;
-import edu.stanford.nlp.pipeline.*;
 import edu.stanford.nlp.ling.*;
 import edu.stanford.nlp.sentiment.SentimentCoreAnnotations;
 import edu.stanford.nlp.pipeline.Annotation;
@@ -70,9 +58,7 @@ import org.apache.commons.csv.CSVFormat;
 import org.apache.commons.csv.CSVParser;
 import org.apache.commons.csv.CSVRecord;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.Reader;
-import java.io.FileReader;
+
 import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -391,7 +377,7 @@ public class ControllerVerticle extends AbstractVerticle {
                 });
     }
 
-    private static List<Map<String,Object>> fetchSpotifyData(Map<String,Object> map){
+    /**private static List<Map<String,Object>> fetchSpotifyData(Map<String,Object> map){
         List<Map<String,Object>> list=new ArrayList<>();
         AtomicReference<Map<String, Object>> result = new AtomicReference<>();
 
@@ -409,9 +395,59 @@ public class ControllerVerticle extends AbstractVerticle {
         });
         System.out.println(list);
         return list;
+    }*/
+
+    private static Map<String, String> fetchSpotifyData(Map<String, Object> map, MongoClient mongoClient) {
+        Map<String, String> result = new HashMap<>();
+
+        List<Map<String, Object>> data = (List<Map<String, Object>>) map.get("items");
+
+        if (data.isEmpty()) {
+            result.put("Status", "Failure");
+            result.put("DB Status", "No Data Found");
+            return result;
+        }
+
+        data.forEach(a -> {
+            List<Map<String, Object>> images = (List<Map<String, Object>>) a.get("images");
+
+            JsonObject query = new JsonObject().put("name", a.get("name"));
+
+            mongoClient.find("spotify_data", query, res -> {
+                if (res.succeeded()) {
+                    List<JsonObject> existingRecords = res.result();
+                    if (existingRecords.isEmpty()) {
+                        JsonObject document = new JsonObject()
+                                .put("type", a.get("type"))
+                                .put("name", a.get("name"))
+                                .put("popularity", a.get("popularity"))
+                                .put("uri", a.get("uri"))
+                                .put("imageURL", images.get(0).get("url"))
+                                .put("totalFollowers", ((Map<String, Object>) a.get("followers")).get("total").toString());
+                        mongoClient.insert("spotify_data", document, insertRes -> {
+                            if (insertRes.succeeded()) {
+                                logger.info("Inserted Spotify data: " + a.get("name"));
+                            } else {
+                                logger.error("Insert Failed: " + insertRes.cause().getMessage());
+                            }
+                        });
+                    } else {
+                        logger.info("Spotify data already exists: " + a.get("name"));
+                    }
+                } else {
+                    logger.error("Query Failed: " + res.cause().getMessage());
+                }
+            });
+        });
+
+        result.put("Status", "Success");
+        result.put("DB Status", "Data Inserted");
+
+        return result;
     }
 
-    private static List<Map<String,Object>> fetchSpotifyDataPlaylists(Map<String,Object> map){
+
+    /**private static List<Map<String,Object>> fetchSpotifyDataPlaylists(Map<String,Object> map){
         List<Map<String,Object>> list=new ArrayList<>();
         AtomicReference<Map<String, Object>> result = new AtomicReference<>();
 
@@ -429,6 +465,61 @@ public class ControllerVerticle extends AbstractVerticle {
         });
 //        System.out.println(list);
         return list;
+    }*/
+
+    private static Map<String, String> fetchSpotifyDataPlaylists(Map<String,Object> map, MongoClient mongoClient) {
+        Map<String, String> result = new HashMap<>();
+
+        List<Map<String,Object>> data = (List<Map<String,Object>>) map.get("items");
+        if (data.isEmpty()) {
+            result.put("Status", "Failure");
+            result.put("DB Status", "No Data Found");
+            return result;
+        }
+        data.forEach(a->{
+//            result.set(new HashMap<>());
+//            result.get().put("totalPlayLists", map.get("total"));
+//            //result.get().put("collaborative", a.get("collaborative"));
+//            //result.get().put("name", a.get("name"));
+//            result.get().put("type", a.get("type"));
+//            result.get().put("public", a.get("public"));
+//            result.get().put("ownerName", ((Map<String,Object>) a.get("owner")).get("display_name"));
+//            result.get().put("totalTracks", ((Map<String,Object>) a.get("tracks")).get("total").toString());
+//            list.add(result.get());
+
+            JsonObject query = new JsonObject().put("name", a.get("name"));
+
+            mongoClient.find("spotify_data_DataPlaylists", query, res -> {
+                if (res.succeeded()) {
+                    List<JsonObject> existingRecords = res.result();
+                    if (existingRecords.isEmpty()) {
+                        JsonObject document = new JsonObject()
+                                .put("totalPlayLists", map.get("total"))
+                                .put("collaborative", a.get("collaborative"))
+                                .put("name", a.get("name"))
+                                .put("type", a.get("type"))
+                                .put("public", a.get("public"))
+                                .put("ownerName", ((Map<String,Object>) a.get("owner")).get("display_name"))
+                                .put("totalTracks", ((Map<String,Object>) a.get("tracks")).get("total").toString());
+                        mongoClient.insert("spotify_data_DataPlaylists", document, insertRes -> {
+                            if (insertRes.succeeded()) {
+                                logger.info("Inserted Spotify data: " + a.get("name"));
+                            } else {
+                                logger.error("Insert Failed: " + insertRes.cause().getMessage());
+                            }
+                        });
+                    } else {
+                        logger.info("Spotify data already exists: " + a.get("name"));
+                    }
+                } else {
+                    logger.error("Query Failed: " + res.cause().getMessage());
+                }
+            });
+        });
+
+        result.put("Status", "Success");
+        result.put("DB Status", "Data Inserted");
+        return result;
     }
 
     private static List<Map<String,Object>> fetchRedditData(Map<String,Object> map){
@@ -513,7 +604,7 @@ public class ControllerVerticle extends AbstractVerticle {
                             //String filteredJson = filterJson(responseBody);
                             Map<String,Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
                             ctx.response().putHeader("Content-Type", "application/json")
-                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(fetchSpotifyData(result)));
+                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(fetchSpotifyData(result,mongoClient)));
                             //.end(.toString());
 
                         } catch (Exception e) {
@@ -547,7 +638,7 @@ public class ControllerVerticle extends AbstractVerticle {
                             //String filteredJson = filterJson(responseBody);
                             Map<String,Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
                             ctx.response().putHeader("Content-Type", "application/json")
-                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(fetchSpotifyDataPlaylists(result)));
+                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(fetchSpotifyDataPlaylists(result,mongoClient)));
                         } catch (Exception e) {
                             ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process data\"}");
                         }
