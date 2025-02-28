@@ -12,6 +12,7 @@ import ConnectionsPage from './scenes/connections';
 import Insights from './scenes/insights';
 import HistoryPage from './scenes/history';
 import Login from './scenes/login';
+import OAuthIntegration from './scenes/DataPlug/OAuthIntegration';
 
 // Theme
 import { theme } from "./theme";
@@ -96,6 +97,14 @@ function App() {
                 <PageFrame element={<ConnectionsPage />} />
               </ProtectedRoute>
             } 
+          />
+          <Route
+              path="/oauth"
+              element={
+                <ProtectedRoute>
+                  <PageFrame element={<OAuthIntegration />} />
+                </ProtectedRoute>
+              }
           />
           <Route 
             path="/insights" 

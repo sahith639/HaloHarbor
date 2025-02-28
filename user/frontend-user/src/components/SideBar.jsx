@@ -17,6 +17,7 @@ import ChatBubbleOutlineOutlinedIcon from '@mui/icons-material/ChatBubbleOutline
 import LocalFloristOutlinedIcon from '@mui/icons-material/LocalFloristOutlined';
 import QuestionMarkOutlinedIcon from '@mui/icons-material/QuestionMarkOutlined';
 import DocumentScannerOutlinedIcon from '@mui/icons-material/DocumentScannerOutlined';
+import DataObjectIcon from '@mui/icons-material/DataObject';
 
 // import StressScore from "../StressScore";
 // import Logout from "../../components/Logout";
@@ -122,6 +123,13 @@ const ThisProSidebar = () => {
               title={"My Insights"}
               to="/insights"
               icon ={<DocumentScannerOutlinedIcon />}
+              selected={selected}
+              setSelected={setSelected}
+          />
+          <Item
+              title={"Data Plug"}
+              to="/oauth"
+              icon ={<DataObjectIcon />}
               selected={selected}
               setSelected={setSelected}
           />
