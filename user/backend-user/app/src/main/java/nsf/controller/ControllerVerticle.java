@@ -312,19 +312,19 @@ public class ControllerVerticle extends AbstractVerticle {
     private void getUserSavedPosts(RoutingContext ctx) {
         if (!checkAuthorization(ctx)) return;
         String url = "https://oauth.reddit.com/user/" + userName + "/saved";
-        fetchData(ctx, url);
+        fetchData(ctx, url,"Reddit_Saved_Posts");
     }
 
     private void getUserUpVotedPosts(RoutingContext ctx) {
         if (!checkAuthorization(ctx)) return;
         String url = "https://oauth.reddit.com/user/" + userName + "/upvoted";
-        fetchData(ctx, url);
+        fetchData(ctx, url,"Reddit_Up_Voted_Posts");
     }
 
     private void getUserDownVotedPosts(RoutingContext ctx) {
         if (!checkAuthorization(ctx)) return;
         String url = "https://oauth.reddit.com/user/" + userName + "/downvoted";
-        fetchData(ctx, url);
+        fetchData(ctx, url,"Reddit_Doen_Voted_Posts");
     }
 
     private boolean checkAuthorization(RoutingContext ctx) {
@@ -348,7 +348,7 @@ public class ControllerVerticle extends AbstractVerticle {
         return true;
     }
 
-    private void fetchData(RoutingContext ctx, String url) {
+    private void fetchData(RoutingContext ctx, String url, String collection) {
         webClient.getAbs(url)
                 .bearerTokenAuthentication(accessToken)
                 .send(ar -> {
@@ -359,11 +359,11 @@ public class ControllerVerticle extends AbstractVerticle {
                             //String filteredJson = filterJson(responseBody);
                             Map<String,Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
                             ctx.response().putHeader("Content-Type", "application/json")
-                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(fetchRedditData(result)));
+                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(fetchRedditData(result,collection, mongoClient)));
                                     //.end(.toString());
 
                         } catch (Exception e) {
-                            ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process data\"}");
+                            ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process data Please Try Again.\"}");
                         }
                     }else{
                         ctx.response().setStatusCode(500).end("{\"error\": \"Failed to fetch data\"}");
@@ -522,7 +522,7 @@ public class ControllerVerticle extends AbstractVerticle {
         return result;
     }
 
-    private static List<Map<String,Object>> fetchRedditData(Map<String,Object> map){
+    /**private static List<Map<String,Object>> fetchRedditData(Map<String,Object> map, String collection){
         System.out.println("fetchRedditData.Map: "+ map);
         List<Map<String,Object>> list=new ArrayList<>();
         AtomicReference<Map<String, Object>> result = new AtomicReference<>();
@@ -544,6 +544,55 @@ public class ControllerVerticle extends AbstractVerticle {
         });
         System.out.println(list);
         return list;
+    }*/
+
+    private static Map<String, String> fetchRedditData(Map<String,Object> map, String collection, MongoClient mongoClient){
+        Map<String, String> result = new HashMap<>();
+        Map<String,Object> data = (Map<String,Object>) map.get("data");
+        if (data.isEmpty()) {
+            result.put("Status", "Failure");
+            result.put("DB Status", "No Data Found");
+            return result;
+        }
+
+        List<Map<String,Object>> children = (List<Map<String,Object>>) data.get("children");
+        children.forEach(stringObjectMap -> {
+            Map<String,Object> child = (Map<String,Object>) stringObjectMap.get("data");
+
+            JsonObject query = new JsonObject().put("title", child.get("title"));
+
+            mongoClient.find(collection, query, res -> {
+                if (res.succeeded()) {
+                    List<JsonObject> existingRecords = res.result();
+                    if (existingRecords.isEmpty()) {
+                        JsonObject document = new JsonObject()
+                                .put("selftext", child.get("selftext"))
+                                .put("title", child.get("title"))
+                                .put("name", child.get("name"))
+                                .put("subreddit_type", child.get("subreddit_type"))
+                                .put("thumbnail", child.get("thumbnail"))
+                                .put("url", child.get("url"))
+                                .put("subreddit_id", child.get("subreddit_id"))
+                                .put("id", child.get("id"))
+                                .put("author", child.get("author"));
+                        mongoClient.insert(collection, document, insertRes -> {
+                            if (insertRes.succeeded()) {
+                                logger.info("Inserted Reddit data: " + child.get("title"));
+                            } else {
+                                logger.error("Insert Failed: " + insertRes.cause().getMessage());
+                            }
+                        });
+                    } else {
+                        logger.info("Reddit data already exists: " + child.get("title"));
+                    }
+                } else {
+                    logger.error("Query Failed: " + res.cause().getMessage());
+                }
+            });
+        });
+        result.put("Status", "Success");
+        result.put("DB Status", "Data Inserted");
+        return result;
     }
 
     private void redirectToSpotify(RoutingContext ctx) {
