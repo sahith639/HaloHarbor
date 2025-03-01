@@ -441,7 +441,7 @@ public class ControllerVerticle extends AbstractVerticle {
         });
 
         result.put("Status", "Success");
-        result.put("DB Status", "Data Inserted");
+        result.put("DB Status", "spotify Top Artists Data Inserted Successfully");
 
         return result;
     }
@@ -497,6 +497,7 @@ public class ControllerVerticle extends AbstractVerticle {
                                 .put("totalPlayLists", map.get("total"))
                                 .put("collaborative", a.get("collaborative"))
                                 .put("name", a.get("name"))
+                                .put("id", a.get("id"))
                                 .put("type", a.get("type"))
                                 .put("public", a.get("public"))
                                 .put("ownerName", ((Map<String,Object>) a.get("owner")).get("display_name"))
@@ -518,7 +519,7 @@ public class ControllerVerticle extends AbstractVerticle {
         });
 
         result.put("Status", "Success");
-        result.put("DB Status", "Data Inserted");
+        result.put("DB Status", "DataPlaylists Data Inserted Successfully");
         return result;
     }
 
@@ -591,7 +592,7 @@ public class ControllerVerticle extends AbstractVerticle {
             });
         });
         result.put("Status", "Success");
-        result.put("DB Status", "Data Inserted");
+        result.put("DB Status", collection+" Data Inserted");
         return result;
     }
 
