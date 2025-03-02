@@ -1,5 +1,7 @@
 package nsf.controller;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import io.vertx.core.AbstractVerticle;
+import io.vertx.ext.mongo.FindOptions;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import io.vertx.core.json.JsonObject;
@@ -44,6 +46,7 @@ import java.time.Instant;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 import java.util.HashMap;
@@ -252,6 +255,9 @@ public class ControllerVerticle extends AbstractVerticle {
       router.get("/oauth/spotify/callback").handler(this::getSpotifyToken);
       router.get("/oauth/spotify/getTopArtists").handler(this::getUserTopArtists);
       router.get("/oauth/spotify/getUserPlaylists").handler(this::getUserSavedPlaylists);
+      router.get("/oauth/spotify/StoreAllPlayListSongs").handler(this::StoreSongsByPlaylists);
+      router.get("/oauth/spotify/getPlayListIDS").handler(this::getPlayListsIds);
+
 
 
     userSettings = new JsonObject().put("0",true).put("1",true).put("2",true);
@@ -467,6 +473,79 @@ public class ControllerVerticle extends AbstractVerticle {
         return list;
     }*/
 
+    public void getPlayListsIds(RoutingContext ctx) {
+        Promise<List<String>> promise = Promise.promise();
+
+        // Define the query (empty query to match all documents) and projection (only 'id' field)
+        JsonObject projection = new JsonObject().put("id", 1).put("_id", 0);
+
+        // Fetch the playlist data from MongoDB with the projection
+        mongoClient.findWithOptions("spotify_data_DataPlaylists", new JsonObject(),
+                new FindOptions().setFields(projection), res -> {
+                    if (res.succeeded()) {
+                        System.out.println("In success:: ");
+
+                        List<String> ids = res.result().stream()
+                                .map(json -> json.getString("id"))
+                                .collect(Collectors.toList());
+
+                        if (ids.isEmpty()) {
+                            System.out.println("DB Status: No Data Found");
+                        }
+
+                        // Complete the promise with the retrieved playlist IDs
+                        promise.complete(ids);
+
+                        // Send the response after fetching the data from MongoDB
+                        try {
+                            ctx.response().putHeader("Content-Type", "application/json")
+                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(ids));
+                        } catch (JsonProcessingException e) {
+                            ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process JSON\"}");
+                        }
+                    } else {
+                        System.err.println("DB Status: Error Fetching Playlists Data from DB - " + res.cause().getMessage());
+                        promise.fail(res.cause());
+                        ctx.response().setStatusCode(500).end("{\"error\": \"Error fetching data from DB\"}");
+                    }
+                });
+    }
+
+
+    /**private  List<String> getPlayListsIds() {
+        List<String> result = new ArrayList<>();
+
+        final List<String>[] list = new List[]{new ArrayList<>()};
+
+        JsonObject query = new JsonObject();
+        JsonObject projection = new JsonObject().put("id", 1).put("_id", 0);
+        JsonObject queryWithProjection = new JsonObject()
+                .put("query", query)
+                .put("fields", projection);
+        this.mongoClient.findWithOptions("spotify_data_DataPlaylists", queryWithProjection, new FindOptions(), res -> {
+            if (res.succeeded()) {
+                // Extract 'id' from each document and collect into a List
+                System.out.println("Res: "+ res.result());
+                list[0] = res.result().stream()
+                        .map(json -> json.getString("id"))
+                        .collect(Collectors.toList());
+                if(list[0].isEmpty()) {
+                    result.add("DB Status: No Data Found");
+                }
+            } else {
+                result.add("DB Status: Error Fetching Playlists Data from DB");
+            }
+        });
+
+        System.out.println("Result: "+result);
+        System.out.println("List: "+ list[0]);
+        if(result.isEmpty()) {
+            return list[0];
+        }
+        return  result;
+
+    }*/
+
     private static Map<String, String> fetchSpotifyDataPlaylists(Map<String,Object> map, MongoClient mongoClient) {
         Map<String, String> result = new HashMap<>();
 
@@ -669,6 +748,117 @@ public class ControllerVerticle extends AbstractVerticle {
                         ctx.response().setStatusCode(400).end("Failed to fetch top artists");
                     }*/
                 });
+    }
+
+    //getPlayListsIds
+    private void StoreSongsByPlaylists(RoutingContext ctx) {
+        if (spotifyAccessToken == null) {
+            ctx.response().setStatusCode(401).end("Unauthorized");
+            return;
+        }
+
+        String id = ctx.pathParam("id");  // If using a path parameter
+        if (id == null) {
+            id = ctx.request().getParam("id");  // Try getting from query params
+        }
+
+        if (id == null || id.isEmpty()) {
+            ctx.response().setStatusCode(400).end("Missing playlist ID");
+            return;
+        }
+
+        List<Map<String, Object>> dMap = new ArrayList<>();
+
+        webClient.getAbs("https://api.spotify.com/v1/playlists/" + id + "/tracks")
+                .putHeader("Authorization", "Bearer " + spotifyAccessToken)
+                .expect(ResponsePredicate.SC_OK)
+                .send(ar -> {
+                    if (ar.succeeded()) {
+                        try {
+                            String responseBody = ar.result().bodyAsString();
+                            System.out.println("Response Body: " + responseBody);
+
+                            Map<String, Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
+                            List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
+
+                            for (Map<String, Object> a : items) {
+                                Map<String, Object> data = new HashMap<>();
+                                Map<String, Object> track = (Map<String, Object>) a.get("track");
+                                if (track == null) continue; // Handle null track
+
+                                Map<String, Object> album = (Map<String, Object>) track.get("album");
+                                List<Map<String, Object>> artists = (List<Map<String, Object>>) album.get("artists");
+
+                                List<Map<String, String>> list = new ArrayList<>();
+                                for (Map<String, Object> artist : artists) {
+                                    Map<String, String> map1 = new HashMap<>();
+                                    map1.put("name", (String) artist.get("name"));
+                                    map1.put("type", (String) artist.get("type"));
+                                    list.add(map1);
+                                }
+
+                                data.put("id", track.get("id"));
+                                data.put("type", album.get("type"));
+                                data.put("album_type", album.get("album_type"));
+                                data.put("name", track.get("name"));
+                                data.put("artists", list);
+                                data.put("popularity", track.get("popularity"));
+
+                                dMap.add(data);
+                            }
+
+                            // 🟢 Move the response here, AFTER data is processed
+                            System.out.println("Dmap: " + dMap);
+
+                            ctx.response().putHeader("Content-Type", "application/json")
+                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(saveData(mongoClient,dMap)));
+
+                        } catch (Exception e) {
+                            System.err.println("Error processing Spotify data for playlist ");
+                            ctx.response().setStatusCode(500).end("Error processing Spotify data for playlist");
+                        }
+                    } else {
+                        System.err.println("Failed to fetch playlist: ");
+                        ctx.response().setStatusCode(500).end("Failed to fetch playlist: ");
+                    }
+                });
+    }
+
+    private Map<String, String>  saveData(MongoClient mongoClient, List<Map<String, Object>> map){
+        Map<String, String> result = new HashMap<>();
+
+        if (map.isEmpty()) {
+            result.put("Status", "Failure");
+            result.put("DB Status", "No Data Found");
+            return result;
+        }
+
+        map.forEach(a->{
+            JsonObject query = new JsonObject().put("id", a.get("id")).put("name", a.get("name"));
+            mongoClient.find("spotify_data_PlayListsSongs", query, res -> {
+                if (res.succeeded()) {
+                    List<JsonObject> existingRecords = res.result();
+                    if (existingRecords.isEmpty()) {
+                        JsonObject document = new JsonObject(a);
+                        mongoClient.insert("spotify_data_PlayListsSongs", document, insertRes -> {
+                            if (insertRes.succeeded()) {
+                                logger.info("Inserted Spotify data: " + a.get("name"));
+                            } else {
+                                logger.error("Insert Failed: " + insertRes.cause().getMessage());
+                            }
+                        });
+                    } else {
+                        logger.info("Spotify data already exists: " + a.get("name"));
+                    }
+                } else {
+                    logger.error("Query Failed: " + res.cause().getMessage());
+                }
+            });
+        });
+
+        result.put("Status", "Success");
+        result.put("DB Status", "spotify_data_PlayListsSongs Data Inserted Successfully");
+        return result;
     }
 
     private void getUserSavedPlaylists(RoutingContext ctx) {
