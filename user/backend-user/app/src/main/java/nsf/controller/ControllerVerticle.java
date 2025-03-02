@@ -767,9 +767,11 @@ public class ControllerVerticle extends AbstractVerticle {
             return;
         }
 
-        List<Map<String, Object>> dMap = new ArrayList<>();
 
-        webClient.getAbs("https://api.spotify.com/v1/playlists/" + id + "/tracks")
+        List<Map<String, Object>> dMap = new ArrayList<>();
+        final String albumName =id.split(":")[1];
+
+        webClient.getAbs("https://api.spotify.com/v1/playlists/" + id.split(":")[0] + "/tracks")
                 .putHeader("Authorization", "Bearer " + spotifyAccessToken)
                 .expect(ResponsePredicate.SC_OK)
                 .send(ar -> {
@@ -803,15 +805,12 @@ public class ControllerVerticle extends AbstractVerticle {
                                 data.put("name", track.get("name"));
                                 data.put("artists", list);
                                 data.put("popularity", track.get("popularity"));
+                                data.put("PartOfPlayList",albumName);
 
                                 dMap.add(data);
                             }
-
-                            // 🟢 Move the response here, AFTER data is processed
-                            System.out.println("Dmap: " + dMap);
-
                             ctx.response().putHeader("Content-Type", "application/json")
-                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(saveData(mongoClient,dMap)));
+                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(saveData(mongoClient,dMap,albumName)));
 
                         } catch (Exception e) {
                             System.err.println("Error processing Spotify data for playlist ");
@@ -824,7 +823,7 @@ public class ControllerVerticle extends AbstractVerticle {
                 });
     }
 
-    private Map<String, String>  saveData(MongoClient mongoClient, List<Map<String, Object>> map){
+    private Map<String, String>  saveData(MongoClient mongoClient, List<Map<String, Object>> map,String albumName){
         Map<String, String> result = new HashMap<>();
 
         if (map.isEmpty()) {
@@ -857,7 +856,7 @@ public class ControllerVerticle extends AbstractVerticle {
         });
 
         result.put("Status", "Success");
-        result.put("DB Status", "Data Inserted Successfully");
+        result.put("DB Status", albumName+" Data Inserted Successfully");
         return result;
     }
 

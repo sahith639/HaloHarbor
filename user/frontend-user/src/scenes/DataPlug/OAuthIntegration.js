@@ -35,9 +35,9 @@ const OAuthIntegration = () => {
         }
 
         try {
-            let playlistId = selectedPlaylist.split(":")[0];
-            console.log("Playlist ID:", playlistId);
-            const response = await fetch(`http://localhost:9080/oauth/spotify/StoreAllPlayListSongs?id=${playlistId}`, {
+            // let playlistId = selectedPlaylist.split(":")[0];
+            // console.log("Playlist ID:", playlistId);
+            const response = await fetch(`http://localhost:9080/oauth/spotify/StoreAllPlayListSongs?id=${selectedPlaylist}`, {
                 method: 'GET', // Assuming POST request, change if needed
             });
             const data = await response.json();
