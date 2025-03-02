@@ -477,7 +477,7 @@ public class ControllerVerticle extends AbstractVerticle {
         Promise<List<String>> promise = Promise.promise();
 
         // Define the query (empty query to match all documents) and projection (only 'id' field)
-        JsonObject projection = new JsonObject().put("id", 1).put("_id", 0);
+        JsonObject projection = new JsonObject().put("id", 1).put("name",1).put("_id", 0);
 
         // Fetch the playlist data from MongoDB with the projection
         mongoClient.findWithOptions("spotify_data_DataPlaylists", new JsonObject(),
@@ -486,7 +486,7 @@ public class ControllerVerticle extends AbstractVerticle {
                         System.out.println("In success:: ");
 
                         List<String> ids = res.result().stream()
-                                .map(json -> json.getString("id"))
+                                .map(json -> json.getString("id") + ":"+json.getString("name"))
                                 .collect(Collectors.toList());
 
                         if (ids.isEmpty()) {
@@ -857,7 +857,7 @@ public class ControllerVerticle extends AbstractVerticle {
         });
 
         result.put("Status", "Success");
-        result.put("DB Status", "spotify_data_PlayListsSongs Data Inserted Successfully");
+        result.put("DB Status", "Data Inserted Successfully");
         return result;
     }
 

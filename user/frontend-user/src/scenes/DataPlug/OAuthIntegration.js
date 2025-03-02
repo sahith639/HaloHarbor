@@ -3,6 +3,8 @@ import './OAuthIntegration.css';
 
 const OAuthIntegration = () => {
     const [jsonOutput, setJsonOutput] = useState('');
+    const [playlistIds, setPlaylistIds] = useState([]);  // To store playlist IDs
+    const [selectedPlaylist, setSelectedPlaylist] = useState('');  // To store the selected playlist ID
 
     const fetchData = async (url) => {
         try {
@@ -11,6 +13,37 @@ const OAuthIntegration = () => {
             setJsonOutput(JSON.stringify(data, null, 2));
         } catch (error) {
             console.error('Error:', error);
+        }
+    };
+
+    // Fetch Playlist IDs
+    const fetchPlaylistIds = async () => {
+        try {
+            const response = await fetch('http://localhost:9080/oauth/spotify/getPlayListIDS');
+            const data = await response.json();
+            setPlaylistIds(data); // Assuming response contains a list of IDs
+        } catch (error) {
+            console.error('Error fetching Playlist IDs:', error);
+        }
+    };
+
+    // Save Playlist Songs
+    const savePlaylistSongs = async () => {
+        if (!selectedPlaylist) {
+            alert('Please select a playlist');
+            return;
+        }
+
+        try {
+            let playlistId = selectedPlaylist.split(":")[0];
+            console.log("Playlist ID:", playlistId);
+            const response = await fetch(`http://localhost:9080/oauth/spotify/StoreAllPlayListSongs?id=${playlistId}`, {
+                method: 'GET', // Assuming POST request, change if needed
+            });
+            const data = await response.json();
+            setJsonOutput(JSON.stringify(data, null, 2));
+        } catch (error) {
+            console.error('Error saving Playlist Songs:', error);
         }
     };
 
@@ -39,6 +72,22 @@ const OAuthIntegration = () => {
                     <div className="oauth-button-group">
                         <button className="oauth-button spaced-button" onClick={() => fetchData('http://localhost:9080/oauth/spotify/getTopArt')}>Top Artists</button>
                         <button className="oauth-button spaced-button" onClick={() => fetchData('http://localhost:9080/oauth/spotify/getUserPlaylists')}>Fetch Playlists</button>
+                    </div>
+
+                    {/* Dropdown to select a Playlist */}
+                    <div className="dropdown-container">
+                        <button className="oauth-button spaced-button" onClick={fetchPlaylistIds}>Get Playlist IDs</button>
+                        <select
+                            className="oauth-dropdown"
+                            value={selectedPlaylist}
+                            onChange={(e) => setSelectedPlaylist(e.target.value)}
+                        >
+                            <option value="">Select Playlist</option>
+                            {playlistIds.map((id) => (
+                                <option key={id} value={id}>{id}</option>
+                            ))}
+                        </select>
+                        <button className="oauth-button spaced-button" onClick={savePlaylistSongs}>Save Playlist Songs</button>
                     </div>
                 </div>
             </div>
