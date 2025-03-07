@@ -365,7 +365,7 @@ public class ControllerVerticle extends AbstractVerticle {
                             //String filteredJson = filterJson(responseBody);
                             Map<String,Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
                             ctx.response().putHeader("Content-Type", "application/json")
-                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(fetchRedditData(result,collection, mongoClient)));
+                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(fetchRedditData(result,collection)));
                                     //.end(.toString());
 
                         } catch (Exception e) {
@@ -403,7 +403,7 @@ public class ControllerVerticle extends AbstractVerticle {
         return list;
     }*/
 
-    private static Map<String, String> fetchSpotifyData(Map<String, Object> map, MongoClient mongoClient) {
+    private  Map<String, String> fetchSpotifyData(Map<String, Object> map) {
         Map<String, String> result = new HashMap<>();
 
         List<Map<String, Object>> data = (List<Map<String, Object>>) map.get("items");
@@ -419,7 +419,7 @@ public class ControllerVerticle extends AbstractVerticle {
 
             JsonObject query = new JsonObject().put("name", a.get("name"));
 
-            mongoClient.find("spotify_data", query, res -> {
+            userDataMongoClient.find("spotify_data", query, res -> {
                 if (res.succeeded()) {
                     List<JsonObject> existingRecords = res.result();
                     if (existingRecords.isEmpty()) {
@@ -430,7 +430,7 @@ public class ControllerVerticle extends AbstractVerticle {
                                 .put("uri", a.get("uri"))
                                 .put("imageURL", images.get(0).get("url"))
                                 .put("totalFollowers", ((Map<String, Object>) a.get("followers")).get("total").toString());
-                        mongoClient.insert("spotify_data", document, insertRes -> {
+                        userDataMongoClient.insert("spotify_data", document, insertRes -> {
                             if (insertRes.succeeded()) {
                                 logger.info("Inserted Spotify data: " + a.get("name"));
                             } else {
@@ -480,7 +480,7 @@ public class ControllerVerticle extends AbstractVerticle {
         JsonObject projection = new JsonObject().put("id", 1).put("name",1).put("_id", 0);
 
         // Fetch the playlist data from MongoDB with the projection
-        mongoClient.findWithOptions("spotify_data_DataPlaylists", new JsonObject(),
+        userDataMongoClient.findWithOptions("spotify_data_DataPlaylists", new JsonObject(),
                 new FindOptions().setFields(projection), res -> {
                     if (res.succeeded()) {
                         System.out.println("In success:: ");
@@ -546,7 +546,7 @@ public class ControllerVerticle extends AbstractVerticle {
 
     }*/
 
-    private static Map<String, String> fetchSpotifyDataPlaylists(Map<String,Object> map, MongoClient mongoClient) {
+    private  Map<String, String> fetchSpotifyDataPlaylists(Map<String,Object> map) {
         Map<String, String> result = new HashMap<>();
 
         List<Map<String,Object>> data = (List<Map<String,Object>>) map.get("items");
@@ -568,7 +568,7 @@ public class ControllerVerticle extends AbstractVerticle {
 
             JsonObject query = new JsonObject().put("name", a.get("name"));
 
-            mongoClient.find("spotify_data_DataPlaylists", query, res -> {
+            userDataMongoClient.find("spotify_data_DataPlaylists", query, res -> {
                 if (res.succeeded()) {
                     List<JsonObject> existingRecords = res.result();
                     if (existingRecords.isEmpty()) {
@@ -581,7 +581,7 @@ public class ControllerVerticle extends AbstractVerticle {
                                 .put("public", a.get("public"))
                                 .put("ownerName", ((Map<String,Object>) a.get("owner")).get("display_name"))
                                 .put("totalTracks", ((Map<String,Object>) a.get("tracks")).get("total").toString());
-                        mongoClient.insert("spotify_data_DataPlaylists", document, insertRes -> {
+                        userDataMongoClient.insert("spotify_data_DataPlaylists", document, insertRes -> {
                             if (insertRes.succeeded()) {
                                 logger.info("Inserted Spotify data: " + a.get("name"));
                             } else {
@@ -626,7 +626,7 @@ public class ControllerVerticle extends AbstractVerticle {
         return list;
     }*/
 
-    private static Map<String, String> fetchRedditData(Map<String,Object> map, String collection, MongoClient mongoClient){
+    private  Map<String, String> fetchRedditData(Map<String,Object> map, String collection){
         Map<String, String> result = new HashMap<>();
         Map<String,Object> data = (Map<String,Object>) map.get("data");
         if (data.isEmpty()) {
@@ -641,7 +641,7 @@ public class ControllerVerticle extends AbstractVerticle {
 
             JsonObject query = new JsonObject().put("title", child.get("title"));
 
-            mongoClient.find(collection, query, res -> {
+            userDataMongoClient.find(collection, query, res -> {
                 if (res.succeeded()) {
                     List<JsonObject> existingRecords = res.result();
                     if (existingRecords.isEmpty()) {
@@ -655,7 +655,7 @@ public class ControllerVerticle extends AbstractVerticle {
                                 .put("subreddit_id", child.get("subreddit_id"))
                                 .put("id", child.get("id"))
                                 .put("author", child.get("author"));
-                        mongoClient.insert(collection, document, insertRes -> {
+                        userDataMongoClient.insert(collection, document, insertRes -> {
                             if (insertRes.succeeded()) {
                                 logger.info("Inserted Reddit data: " + child.get("title"));
                             } else {
@@ -733,7 +733,7 @@ public class ControllerVerticle extends AbstractVerticle {
                             //String filteredJson = filterJson(responseBody);
                             Map<String,Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
                             ctx.response().putHeader("Content-Type", "application/json")
-                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(fetchSpotifyData(result,mongoClient)));
+                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(fetchSpotifyData(result)));
                             //.end(.toString());
 
                         } catch (Exception e) {
@@ -810,7 +810,7 @@ public class ControllerVerticle extends AbstractVerticle {
                                 dMap.add(data);
                             }
                             ctx.response().putHeader("Content-Type", "application/json")
-                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(saveData(mongoClient,dMap,albumName)));
+                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(saveData(dMap,albumName)));
 
                         } catch (Exception e) {
                             System.err.println("Error processing Spotify data for playlist ");
@@ -823,7 +823,7 @@ public class ControllerVerticle extends AbstractVerticle {
                 });
     }
 
-    private Map<String, String>  saveData(MongoClient mongoClient, List<Map<String, Object>> map,String albumName){
+    private Map<String, String>  saveData(List<Map<String, Object>> map,String albumName){
         Map<String, String> result = new HashMap<>();
 
         if (map.isEmpty()) {
@@ -834,12 +834,12 @@ public class ControllerVerticle extends AbstractVerticle {
 
         map.forEach(a->{
             JsonObject query = new JsonObject().put("id", a.get("id")).put("name", a.get("name"));
-            mongoClient.find("spotify_data_PlayListsSongs", query, res -> {
+            userDataMongoClient.find("spotify_data_PlayListsSongs", query, res -> {
                 if (res.succeeded()) {
                     List<JsonObject> existingRecords = res.result();
                     if (existingRecords.isEmpty()) {
                         JsonObject document = new JsonObject(a);
-                        mongoClient.insert("spotify_data_PlayListsSongs", document, insertRes -> {
+                        userDataMongoClient.insert("spotify_data_PlayListsSongs", document, insertRes -> {
                             if (insertRes.succeeded()) {
                                 logger.info("Inserted Spotify data: " + a.get("name"));
                             } else {
@@ -877,7 +877,7 @@ public class ControllerVerticle extends AbstractVerticle {
                             //String filteredJson = filterJson(responseBody);
                             Map<String,Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
                             ctx.response().putHeader("Content-Type", "application/json")
-                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(fetchSpotifyDataPlaylists(result,mongoClient)));
+                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(fetchSpotifyDataPlaylists(result)));
                         } catch (Exception e) {
                             ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process data\"}");
                         }
@@ -1047,10 +1047,10 @@ public class ControllerVerticle extends AbstractVerticle {
     }
 
   }
-  private void createUserDataMongoClient(String id){
+  private MongoClient createUserDataMongoClient(String id){
     String dname= id+"_db";
     JsonObject conf = new JsonObject().put("connection_string", "mongodb://host.docker.internal:37017/").put("db_name",dname);
-    userDataMongoClient = MongoClient.createShared(vertx,conf,dname);
+    return  MongoClient.createShared(vertx,conf,dname);
   }
 
   private void getYTData(RoutingContext context) {
@@ -1100,7 +1100,7 @@ public class ControllerVerticle extends AbstractVerticle {
             logger.info("Total number of records to process = " + totalRecords.get());
             logger.info("curent user "+ currentUserId);
             JsonObject filter = new JsonObject().put("User ID", currentUserId);
-            createUserDataMongoClient(currentUserId);
+            //createUserDataMongoClient(currentUserId);
 
             // Clear MongoDB collection before saving new records
             userDataMongoClient.removeDocuments("youtube", filter , clearAr -> {
@@ -1697,10 +1697,10 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
             if (user != null) {
               String userId = user.getString("userId");
               logger.info("Found user with ID: " + userId + " for connection: " + connId);
-              createUserDataMongoClient(userId);
+              MongoClient computeUserClient = createUserDataMongoClient(userId);
               // Query YouTube data for this specific user
               JsonObject youtubeQuery = new JsonObject().put("User ID", userId);
-              userDataMongoClient.find("youtube", new JsonObject(), result -> {
+              computeUserClient.find("youtube", new JsonObject(), result -> {
                 if (result.succeeded()) {
                   List<JsonObject> documents = result.result();
                   Map<String, List<Integer>> sentimentMap = new HashMap<>();
@@ -1724,9 +1724,11 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
                   logger.info("handler2");
                   sendBasicMessage(connId, "COMPUTE_RESPONSE", averageSentimentPerUser, null);
                   logger.info("Average Sentiment for User " + userId);
+                  computeUserClient.close(); // remove if gives error
 
                 } else {
                   logger.error("Failed to fetch data from MongoDB: " + result.cause().getMessage());
+                  computeUserClient.close();
                 }
               });
 
@@ -2621,6 +2623,8 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
 
               JsonObject responseBody = new JsonObject()
                       .put("accessToken", accessToken);
+              
+              userDataMongoClient = createUserDataMongoClient(username);
 
               context.response()
                     .putHeader("Content-Type", "application/json")
