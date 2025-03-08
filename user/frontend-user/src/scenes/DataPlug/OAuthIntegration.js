@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import './OAuthIntegration.css';
+import { ToastContainer, toast } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 const OAuthIntegration = () => {
     const [jsonOutput, setJsonOutput] = useState('');
-    const [playlistIds, setPlaylistIds] = useState([]);  // To store playlist IDs
-    const [selectedPlaylist, setSelectedPlaylist] = useState('');  // To store the selected playlist ID
+    const [playlistIds, setPlaylistIds] = useState([]);
+    const [selectedPlaylist, setSelectedPlaylist] = useState('');
 
     const fetchData = async (url) => {
         try {
@@ -16,7 +18,6 @@ const OAuthIntegration = () => {
         }
     };
 
-    // Fetch Playlist IDs
     const fetchPlaylistIds = async () => {
         try {
             const response = await fetch('http://localhost:9080/oauth/spotify/getPlayListIDS');
@@ -27,7 +28,6 @@ const OAuthIntegration = () => {
         }
     };
 
-    // Save Playlist Songs
     const savePlaylistSongs = async () => {
         if (!selectedPlaylist) {
             alert('Please select a playlist');
@@ -35,10 +35,8 @@ const OAuthIntegration = () => {
         }
 
         try {
-            // let playlistId = selectedPlaylist.split(":")[0];
-            // console.log("Playlist ID:", playlistId);
             const response = await fetch(`http://localhost:9080/oauth/spotify/StoreAllPlayListSongs?id=${selectedPlaylist}`, {
-                method: 'GET', // Assuming POST request, change if needed
+                method: 'GET',
             });
             const data = await response.json();
             setJsonOutput(JSON.stringify(data, null, 2));
@@ -47,9 +45,13 @@ const OAuthIntegration = () => {
         }
     };
 
+    const handleSpotifyLogin = () => {
+        toast.success('Login Successful with Spotify!');
+    };
+
     return (
         <div className="oauth-container">
-            <div className="oauth-sections"> {/* Flex container for side-by-side layout */}
+            <div className="oauth-sections">
                 {/* Reddit OAuth Section */}
                 <div className="oauth-section">
                     <h2 className="oauth-title">Reddit OAuth Integration</h2>
@@ -66,7 +68,7 @@ const OAuthIntegration = () => {
                 {/* Spotify OAuth Section */}
                 <div className="oauth-section">
                     <h2 className="oauth-title">Spotify OAuth Integration</h2>
-                    <a href="http://localhost:9080/oauth/spotify/login">
+                    <a href="http://localhost:9080/oauth/spotify/login" onClick={handleSpotifyLogin}>
                         <button className="oauth-button login-button">Login with Spotify</button>
                     </a>
                     <div className="oauth-button-group">
@@ -92,7 +94,6 @@ const OAuthIntegration = () => {
                 </div>
             </div>
 
-            {/* JSON Output Section */}
             <textarea
                 id="jsonOutput"
                 rows="15"
@@ -101,6 +102,7 @@ const OAuthIntegration = () => {
                 value={jsonOutput}
                 className="oauth-output"
             />
+            <ToastContainer />
         </div>
     );
 };

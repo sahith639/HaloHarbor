@@ -257,6 +257,7 @@ public class ControllerVerticle extends AbstractVerticle {
       router.get("/oauth/spotify/getUserPlaylists").handler(this::getUserSavedPlaylists);
       router.get("/oauth/spotify/StoreAllPlayListSongs").handler(this::StoreSongsByPlaylists);
       router.get("/oauth/spotify/getPlayListIDS").handler(this::getPlayListsIds);
+      router.get("/oauth/logout").handler(this::logout);
 
 
 
@@ -748,6 +749,12 @@ public class ControllerVerticle extends AbstractVerticle {
                         ctx.response().setStatusCode(400).end("Failed to fetch top artists");
                     }*/
                 });
+    }
+
+    private void logout(RoutingContext ctx) {
+        this.spotifyAccessToken=null;
+        this.accessToken=null;
+        ctx.response().setStatusCode(200).end("Success");
     }
 
     //getPlayListsIds
