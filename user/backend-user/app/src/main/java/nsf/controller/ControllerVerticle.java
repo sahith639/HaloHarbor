@@ -259,6 +259,8 @@ public class ControllerVerticle extends AbstractVerticle {
       router.get("/oauth/spotify/getPlayListIDS").handler(this::getPlayListsIds);
       router.get("/oauth/logout").handler(this::logout);
 
+      router.get("/oauth/saveUserDataSettings").handler(this::updateUserControlSettings);
+      router.get("/oauth/fetchCollections").handler(this::getCollections);
 
 
     userSettings = new JsonObject().put("0",true).put("1",true).put("2",true);
@@ -327,6 +329,92 @@ public class ControllerVerticle extends AbstractVerticle {
         String url = "https://oauth.reddit.com/user/" + userName + "/upvoted";
         fetchData(ctx, url,"Reddit_Up_Voted_Posts");
     }
+
+    private void addDocumentToUserDataControl(String docType){
+        JsonObject query = new JsonObject().put("userId", currentUserId);
+
+        userDataMongoClient.findOne("userDataAccess", query, null, res -> {
+            if (res.succeeded()) {
+                System.out.println("In If::");
+                JsonObject existingData = res.result();
+                if (existingData == null) {
+                    // If no existing settings, create a new document with bodyMap
+                    JsonObject newUserSettings = new JsonObject().put("userId", currentUserId).put(docType,true);
+
+                    userDataMongoClient.insert("userDataAccess", newUserSettings, insertRes -> {
+
+                    });
+                } else {
+                    System.out.println("In else::");
+                    // Update existing document with bodyMap
+                    Map<String, Object> bodyMap = existingData.getMap();
+                    if(bodyMap.containsKey(docType)){
+                        return;
+                    }else{
+                        bodyMap.put(docType,true);
+                    }
+                    System.out.println("In else bodyMap:"+bodyMap);
+                    existingData.mergeIn(new JsonObject(bodyMap).put("userId", currentUserId));
+
+                    userDataMongoClient.replaceDocuments("userDataAccess", query, existingData, updateRes -> {
+                    });
+                }
+            }else {
+                System.out.println("Error::");
+            }
+        });
+    }
+
+    private void updateUserControlSettings(RoutingContext ctx) {
+        try {
+            JsonObject requestBody = ctx.body().asJsonObject();
+            Map<String, Object> bodyMap = requestBody.getMap();
+
+            if (bodyMap == null || bodyMap.isEmpty()) {
+                ctx.response().setStatusCode(400).end("{\"error\": \"Invalid JSON payload\"}");
+                return;
+            }
+
+            JsonObject query = new JsonObject().put("userId", currentUserId);
+
+            userDataMongoClient.findOne("userDataAccess", query, null, res -> {
+                if (res.succeeded()) {
+                    JsonObject existingData = res.result();
+                    System.out.println("JsonObject:"+existingData);
+
+                    if (existingData == null) {
+                        // If no existing settings, create a new document with bodyMap
+                        JsonObject newUserSettings = new JsonObject(bodyMap).put("userId", currentUserId);
+
+                        userDataMongoClient.insert("userDataAccess", newUserSettings, insertRes -> {
+                            if (insertRes.succeeded()) {
+                                ctx.response().setStatusCode(201).end("{\"message\": \"User settings created successfully\"}");
+                            } else {
+                                ctx.response().setStatusCode(500).end("{\"error\": \"Failed to create user settings\"}");
+                            }
+                        });
+                    } else {
+                        // Update existing document with bodyMap
+                        existingData.mergeIn(new JsonObject(bodyMap)); // Merge new values into existing document
+
+                        userDataMongoClient.replaceDocuments("userDataAccess", query, existingData, updateRes -> {
+                            if (updateRes.succeeded()) {
+                                ctx.response().setStatusCode(200).end("{\"message\": \"User settings updated successfully\"}");
+                            } else {
+                                ctx.response().setStatusCode(500).end("{\"error\": \"Failed to update user settings\"}");
+                            }
+                        });
+                    }
+                } else {
+                    ctx.response().setStatusCode(500).end("{\"error\": \"Database query failed\"}");
+                }
+            });
+
+        } catch (Exception e) {
+            ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process request\"}");
+        }
+    }
+
 
     private void getUserDownVotedPosts(RoutingContext ctx) {
         if (!checkAuthorization(ctx)) return;
@@ -446,6 +534,7 @@ public class ControllerVerticle extends AbstractVerticle {
                 }
             });
         });
+        addDocumentToUserDataControl("spotify_data");
 
         result.put("Status", "Success");
         result.put("DB Status", "spotify Top Artists Data Inserted Successfully");
@@ -473,6 +562,35 @@ public class ControllerVerticle extends AbstractVerticle {
 //        System.out.println(list);
         return list;
     }*/
+
+    public void getCollections(RoutingContext ctx) {
+        Promise<Map<String,Object>> promise = Promise.promise();
+
+        // Fetch user data from MongoDB
+        userDataMongoClient.findOne("userDataAccess", new JsonObject(), new JsonObject(), res -> {
+            if (res.succeeded() && res.result() != null) {
+
+                Map<String,Object> userData = res.result().getMap();
+                userData.remove("_id"); // Remove MongoDB's internal ID field
+
+                // Complete the promise with the retrieved user data
+                promise.complete(userData);
+
+                // Send the response after fetching the data from MongoDB
+                try {
+                    ctx.response().putHeader("Content-Type", "application/json")
+                            .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(userData));
+                } catch (JsonProcessingException e) {
+                    ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process JSON\"}");
+                }
+            } else {
+                System.err.println("DB Status: Error Fetching User Data from DB - " + (res.cause() != null ? res.cause().getMessage() : "Unknown error"));
+                promise.fail(res.cause());
+                ctx.response().setStatusCode(500).end("{\"error\": \"Error fetching data from DB\"}");
+            }
+        });
+    }
+
 
     public void getPlayListsIds(RoutingContext ctx) {
         Promise<List<String>> promise = Promise.promise();
@@ -598,6 +716,8 @@ public class ControllerVerticle extends AbstractVerticle {
             });
         });
 
+        addDocumentToUserDataControl("spotify_data_DataPlaylists");
+
         result.put("Status", "Success");
         result.put("DB Status", "DataPlaylists Data Inserted Successfully");
         return result;
@@ -671,10 +791,13 @@ public class ControllerVerticle extends AbstractVerticle {
                 }
             });
         });
+        addDocumentToUserDataControl(collection);
         result.put("Status", "Success");
         result.put("DB Status", collection+" Data Inserted");
         return result;
     }
+
+
 
     private void redirectToSpotify(RoutingContext ctx) {
         String url = spotifyAuthUrl + "?client_id=" + spotifyClientId +
@@ -861,6 +984,8 @@ public class ControllerVerticle extends AbstractVerticle {
                 }
             });
         });
+
+        addDocumentToUserDataControl("spotify_data_PlayListsSongs");
 
         result.put("Status", "Success");
         result.put("DB Status", albumName+" Data Inserted Successfully");
