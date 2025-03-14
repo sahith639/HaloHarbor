@@ -38,6 +38,9 @@ import io.vertx.core.file.FileSystem;
 import java.util.HashMap;
 import java.util.Map;
 import nsf.util.JwtUtil;
+import io.vertx.core.json.Json;
+import java.util.stream.Collectors;
+
 
 
 public class ControllerVerticle extends AbstractVerticle {
@@ -126,6 +129,7 @@ public class ControllerVerticle extends AbstractVerticle {
         router.post("/auth/login").handler(this::loginHandler);
         router.post("/auth/signup").handler(this::signupHandler);
         router.get("/api/secure-data").handler(this::authenticateJwt).handler(this::handleSecureData);
+        router.get("/api/participants").handler(this::listParticipantss);
 
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9081"));
         HttpServerOptions options = new HttpServerOptions().setMaxFormAttributeSize(-1);
@@ -152,6 +156,25 @@ public class ControllerVerticle extends AbstractVerticle {
         String dbname = sid+"_db";
         JsonObject mongoConfig = new JsonObject().put("connection_string", "mongodb://host.docker.internal:27018").put("db_name",dbname);
         return MongoClient.createShared(vertx,mongoConfig,dbname);
+    }
+
+    private void listParticipantss(RoutingContext ctx) {
+        JsonObject query = new JsonObject(); // Fetch all documents
+
+        mongoClient.find("participants", query, res -> {
+            if (res.succeeded()) {
+                List<String> connIds = res.result().stream()
+                        .map(doc -> doc.getString("connId"))
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toList());
+
+                ctx.response()
+                        .putHeader("Content-Type", "application/json")
+                        .end(Json.encodePrettily(connIds));
+            } else {
+                ctx.response().setStatusCode(500).end("{\"error\": \"Failed to fetch participants\"}");
+            }
+        });
     }
 
     private void getCollectedData(RoutingContext ctx){

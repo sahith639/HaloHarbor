@@ -126,6 +126,13 @@ const ThisProSidebar = () => {
               selected={selected}
               setSelected={setSelected}
           />
+          <Item
+              title={"Data Acquisition"}
+              to="/dataAcq"
+              icon ={<LocalFloristOutlinedIcon />}
+              selected={selected}
+              setSelected={setSelected}
+          />
           <Item 
               title={"Computation"}
               to="/compute"

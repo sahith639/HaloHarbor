@@ -16,6 +16,7 @@ import TrainingPage from './scenes/training';
 import ComputationPage from './scenes/compute';
 import Login from './scenes/login';
 import SignUp from './scenes/login/signup';
+import UsersList from './scenes/DataAcq/DataAcquisition';
 
 // Protected Route Component
 const ProtectedRoute = ({ children }) => {
@@ -81,6 +82,7 @@ function App() {
           <Route path="/training" element={ <ProtectedRoute><PageFrame element={<TrainingPage/>}/></ProtectedRoute>} />
           <Route path="/compute" element={ <ProtectedRoute><PageFrame element={<ComputationPage/>}/></ProtectedRoute>} />
           <Route path="/about" element={ <ProtectedRoute><PageFrame element={<HelpPage/>}/></ProtectedRoute>} />
+          <Route path="/dataAcq" element={ <ProtectedRoute><PageFrame element={<UsersList/>}/></ProtectedRoute>} />
           {/* <Route path="/connections" element={<ConnectionsPage/>} /> */}
 
           <Route path="*" element={<Navigate to="/login" replace />} />
