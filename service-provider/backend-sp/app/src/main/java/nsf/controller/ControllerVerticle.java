@@ -160,29 +160,37 @@ public class ControllerVerticle extends AbstractVerticle {
     }
 
     private void computeHandlerFromRequest(RoutingContext ctx) {
-        // Extract connId from the request body
+        // Extract request body as JSON
         JsonObject requestBody = ctx.getBodyAsJson();
-        String connId = requestBody.getString("connId");
+        String userId = requestBody.getString("userId");
 
-        if (connId != null) {
-            logger.info("Received connId: " + connId);
-            computeHandler(connId); // Call your existing computeHandler with the connId
+        if (userId != null) {
+            logger.info("Received userId: " + userId);
+
+            // Remove userId from requestBody to get only the selected keys
+            requestBody.remove("userId");
+
+            // Call computeHandler with extracted data
+            computeHandler(userId, requestBody);
+
             ctx.response().setStatusCode(200).end("Compute triggered successfully.");
         } else {
-            ctx.response().setStatusCode(400).end("connId is required.");
+            ctx.response().setStatusCode(400).end("userId is required.");
         }
     }
 
-    private void computeHandler(String connId) {
-        logger.info("computeHandler called for connId: " + connId);
+    private void computeHandler(String userId, JsonObject selectedData) {
+        logger.info("computeHandler called for userId: " + userId);
 
-        // Directly send the basic message without checking MongoDB
-        logger.info("Compute called for connID " + connId);
-        sendBasicMessage(connId, "DATAACQ", new JsonObject(), null);
+        // Log selected data for debugging
+        logger.info("Selected data: " + selectedData.encodePrettily());
 
-        // Respond to the UI after computation
-        //ctx.response().setStatusCode(200).end("Computation triggered successfully.");
+        // Send the selected data instead of an empty object
+        sendBasicMessage(userId, "DATAACQ", selectedData, null);
+
+        // UI will receive a 200 response after processing
     }
+
 
 
     /**private void sendBasicMessage1(String connId, String messageTypeId, Object dataPayload, String messageId){

@@ -1664,6 +1664,85 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
     return sentiments.stream().mapToInt(Integer::intValue).average().orElse(0.0);
   }
 
+    private Future<Map<String, Object>> getDat(Map<String, Object> data, String id, MongoClient userDataMongoClient1) {
+        Promise<Map<String, Object>> finalPromise = Promise.promise();
+        Map<String, Object> resultData = new HashMap<>();
+        resultData.put("id", id);
+        List<Future> futures = new ArrayList<>();
+        //MongoClient userDataMongoClient1 = createUserDataMongoClient(id);
+
+        for (Map.Entry<String, Object> entry : data.entrySet()) {
+            if ((boolean) entry.getValue()) {
+                String collectionName = entry.getKey();
+                Promise<List<JsonObject>> promise = Promise.promise();
+                futures.add(promise.future());
+
+                userDataMongoClient1.find(collectionName, new JsonObject(), res2 -> {
+                    if (res2.succeeded()) {
+                        List<JsonObject> documents = res2.result();
+                        resultData.put(collectionName, documents);
+                        promise.complete(documents);
+                    } else {
+                        System.err.println("Error fetching data from " + collectionName + ": " + res2.cause().getMessage());
+                        promise.fail(res2.cause());
+                    }
+                });
+            }
+        }
+
+        // Wait for all futures to complete before resolving the final promise
+        CompositeFuture.all(futures).onComplete(ar -> {
+            if (ar.succeeded()) {
+                System.out.println("All database calls succeeded");
+                //System.out.println("Final resultData: " + resultData);
+                finalPromise.complete(resultData);
+            } else {
+                System.out.println("Some database calls failed");
+                finalPromise.fail("Failed to fetch all data");
+            }
+        });
+
+        return finalPromise.future(); // Now the function returns a Future that resolves when all queries are done
+    }
+
+
+    /**private Map<String, List<JsonObject>> getDat(Map<String,Object> data, String id){
+      Map<String, List<JsonObject>> resultData = new HashMap<>();
+      List<Future> futures = new ArrayList<>();
+      MongoClient userDataMongoClient1= createUserDataMongoClient(id);
+
+      for (Map.Entry<String, Object> entry : data.entrySet()) {
+          if ((boolean) entry.getValue()) {
+              String collectionName = entry.getKey();
+              Promise<List<JsonObject>> promise = Promise.promise();
+              futures.add(promise.future());
+
+              userDataMongoClient1.find(collectionName, new JsonObject(), res2 -> {
+                  if (res2.succeeded()) {
+                      List<JsonObject> documents = res2.result();
+                      resultData.put(collectionName, documents);
+                      promise.complete(documents);
+                  } else {
+                      System.err.println("Error fetching data from " + collectionName + ": " + res2.cause().getMessage());
+                      promise.fail(res2.cause());
+                  }
+              });
+          }
+      }
+
+      // Wait for all database queries to complete before sending a response
+      CompositeFuture.all(futures).onComplete(ar -> {
+          if (ar.succeeded()) {
+              System.out.println("All calls Success");
+              System.out.println("resultData::: "+resultData);
+          }else{
+              System.out.println("All calls Not Success");
+          }
+      });
+      System.out.println("resultData:: "+resultData);
+      return resultData;
+  }*/
+
   HashSet<String> uniqueMessagesMap = new HashSet<>();
 
   private void basicMessageHandler(RoutingContext webhookCtx) {
@@ -1693,6 +1772,15 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
         case "DATAACQ": {
             JsonObject userQuery = new JsonObject().put("connId", connId);
             System.out.println("userQuery:: " + connId);
+            Map<String, Object> mapData;
+            if (payload instanceof JsonObject) {
+                mapData = ((JsonObject) payload).getMap();
+                System.out.println("payload: " + mapData);
+            } else {
+                mapData = null;
+                System.err.println("Error: Payload is not a JsonObject");
+            }
+
 
             mongoClient.findOne("service_providers", userQuery, null, res -> {
                 if (res.succeeded()) {
@@ -1701,18 +1789,45 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
                     if (existingData != null) {
                         String userId = existingData.getString("userId");
                         System.out.println("UserId: " + userId);
+                        MongoClient userDataMongoClient1 = createUserDataMongoClient(userId);
 
                         // If userId is found, query the userDataAccess collection
                         JsonObject userQuery1 = new JsonObject().put("userId", userId);
 
-                        userDataMongoClient.findOne("userDataAccess", userQuery1, null, res1 -> {
-                            if (res1.succeeded()) {
-                                JsonObject data = res1.result();
-                                System.out.println("Data: " + data.encode()); // Logging the data in a readable format
-                            } else {
-                                System.out.println("Error Extracting Data from userDataAccess");
-                            }
-                        });
+                        if(mapData!=null || !mapData.isEmpty()){
+                            System.out.println("In IF::: ");
+                            getDat(mapData, userId,userDataMongoClient1).onComplete(ar -> {
+                                if (ar.succeeded()) {
+                                    Map<String, Object> result = ar.result();
+                                    System.out.println("Final Data: " + result);
+
+                                } else {
+                                    System.err.println("Failed to fetch data: " + ar.cause().getMessage());
+                                }
+                            });
+                            //Map<String, List<JsonObject>> resultData = getDat(mapData, userId);
+                        }else{
+                            System.out.println("In Else::: ");
+                            userDataMongoClient1.findOne("userDataAccess", userQuery1, null, res1 -> {
+                                if (res1.succeeded()) {
+                                    Map<String,Object> data = res1.result().getMap();
+                                    data.remove("_id");data.remove("userId");
+                                    System.out.println("Data: " + data);
+
+                                    //Map<String, List<JsonObject>> resultData = getDat(data,userId);
+                                    getDat(data, userId,userDataMongoClient1).onComplete(ar -> {
+                                        if (ar.succeeded()) {
+                                            Map<String, Object> result = ar.result();
+                                            System.out.println("Final Data: " + result);
+                                        } else {
+                                            System.err.println("Failed to fetch data: " + ar.cause().getMessage());
+                                        }
+                                    });
+                                } else {
+                                    System.out.println("Error Extracting Data from userDataAccess");
+                                }
+                            });
+                        }
 
                     } else {
                         System.out.println("Existing data not found for connId: " + connId);
