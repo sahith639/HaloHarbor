@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask,jsonify
 from flask import request
 import pickle
 import keras
@@ -19,6 +19,7 @@ import requests
 import io
 import json
 from flask_cors import CORS, cross_origin
+import spacy
 
 def save_client_updates(model, client_id, additional_info=None):
   client_updates = {"weights": model.get_weights()}
@@ -77,6 +78,11 @@ def trainClient(client_id,epochs):
   print("saving Client pkl file",client_id)
   save_client_updates(model, client_id, additional_info)
 
+def detect_artist_spacy(text):
+    doc = nlp(text)
+    artists = [ent.text for ent in doc.ents if ent.label_ in ["PERSON", "ORG"]]
+    return artists
+
 
 app = Flask(__name__)
 cors = CORS(app)
@@ -114,6 +120,18 @@ def run():
 
 
     return 'File and data received'+ '200'
+
+@app.route("/reditCompute", methods=['POST'])
+def compute():
+  data = request.get_json()
+  # Load the pretrained spaCy model
+  nlp = spacy.load("en_core_web_sm")
+  # Example usage
+  artists = []
+  for post in data:
+    artists.append(detect_artist_spacy(post['title'] +' '+post['selftext']))
+
+  return jsonify(artists), 201
 
 @app.route('/')
 def hello():
