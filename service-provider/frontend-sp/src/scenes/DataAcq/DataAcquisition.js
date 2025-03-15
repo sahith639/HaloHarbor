@@ -1,9 +1,14 @@
 import React, { useState } from "react";
+import { toast, ToastContainer } from "react-toastify"; // Correct import for toast and ToastContainer
+import "react-toastify/dist/ReactToastify.css"; // Import styles for toastify
+import styles from './UsersList.module.css'; // Import the CSS module
 
 const UsersList = () => {
     const [users, setUsers] = useState([]);
     const [selectedUserId, setSelectedUserId] = useState("");
     const [checkedValues, setCheckedValues] = useState({});
+    const [data, setData] = useState(""); // State to hold fetched data
+    const [isFetchEnabled, setIsFetchEnabled] = useState(false); // State to enable fetch button
 
     // List of checkboxes with default checked state
     const checkboxItems = [
@@ -66,22 +71,40 @@ const UsersList = () => {
                 body: JSON.stringify(payload),
             });
 
-            if (!response.ok) {
+            if (response.ok) {
+                // Show success toast notification
+                toast.success("Data submitted successfully!");
+                setIsFetchEnabled(true); // Enable fetch button after successful submission
+            } else {
                 throw new Error("Failed to submit data");
             }
-
-            console.log("Submitted successfully:", payload);
         } catch (error) {
             console.error("Error submitting data:", error);
+            toast.error("Error submitting data!");
+        }
+    };
+
+    // Handle fetch data on button click
+    const handleFetchData = async () => {
+        try {
+            const response = await fetch("http://localhost:9080/oauth/getDAData");
+            if (!response.ok) {
+                throw new Error("Failed to fetch data");
+            }
+            const result = await response.json();
+            setData(JSON.stringify(result, null, 2)); // Format the fetched data for display
+        } catch (error) {
+            console.error("Error fetching data:", error);
+            toast.error("Error fetching data!");
         }
     };
 
     return (
-        <div>
-            <button onClick={fetchUsers}>Fetch Users</button>
+        <div className={styles.container}>
+            <button className={styles.button} onClick={fetchUsers}>Fetch Users</button>
 
             {/* Dropdown to select a user */}
-            <select onChange={handleUserSelect} value={selectedUserId}>
+            <select className={styles.select} onChange={handleUserSelect} value={selectedUserId}>
                 <option value="">Select a User</option>
                 {users.map((userId, index) => (
                     <option key={index} value={userId}>
@@ -93,12 +116,13 @@ const UsersList = () => {
             {/* Display checkboxes if a user is selected */}
             {selectedUserId && (
                 <div>
-                    <h3>Available Data Collections</h3>
+                    <h3 className={styles.heading}>Available Data Collections</h3>
                     {checkboxItems.map((item) => (
                         <div key={item}>
-                            <label>
+                            <label className={styles.label}>
                                 <input
                                     type="checkbox"
+                                    className={styles.checkbox}
                                     checked={checkedValues[item]}
                                     onChange={() => handleCheckboxChange(item)}
                                 />
@@ -106,9 +130,27 @@ const UsersList = () => {
                             </label>
                         </div>
                     ))}
-                    <button onClick={handleSubmit}>Submit</button>
+                    <button className={styles.button} onClick={handleSubmit}>Submit</button>
                 </div>
             )}
+
+            {/* Display the fetch button and textarea */}
+            {isFetchEnabled && (
+                <div>
+                    <button className={styles.button} onClick={handleFetchData}>Fetch Data</button>
+                    <textarea
+                        className={styles.textarea}
+                        rows="10"
+                        cols="50"
+                        value={data}
+                        readOnly
+                        placeholder="Fetched data will be displayed here..."
+                    />
+                </div>
+            )}
+
+            {/* Toast container for notifications */}
+            <ToastContainer />
         </div>
     );
 };

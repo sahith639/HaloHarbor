@@ -121,6 +121,7 @@ public class ControllerVerticle extends AbstractVerticle {
     private String spotifyRedirectUri = "http://localhost:9080/oauth/spotify/callback";
     private String spotifyAccessToken;
     private WebClient webClient;
+    private Map<String, Object> resultDA =null;
 
 
   Random random = new Random();
@@ -261,6 +262,7 @@ public class ControllerVerticle extends AbstractVerticle {
 
       router.get("/oauth/saveUserDataSettings").handler(this::updateUserControlSettings);
       router.get("/oauth/fetchCollections").handler(this::getCollections);
+      router.get("/oauth/getDAData").handler(this::getDAData);
 
 
     userSettings = new JsonObject().put("0",true).put("1",true).put("2",true);
@@ -562,6 +564,26 @@ public class ControllerVerticle extends AbstractVerticle {
 //        System.out.println(list);
         return list;
     }*/
+
+    public void getDAData(RoutingContext ctx) {
+        if (this.resultDA == null) {
+            ctx.response().setStatusCode(500).end("{\"error\": \"No Data Found\"}");
+            return;
+        }
+
+        Map<String, Object> temp = resultDA;
+        resultDA = null;
+
+        try {
+            String jsonResponse = new ObjectMapper().writeValueAsString(temp);
+            ctx.response().putHeader("Content-Type", "application/json")
+                    .end(jsonResponse);
+        } catch (JsonProcessingException e) {
+            // Handle the exception if serialization fails
+            ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process data\"}");
+        }
+    }
+
 
     public void getCollections(RoutingContext ctx) {
         Promise<Map<String,Object>> promise = Promise.promise();
@@ -877,6 +899,7 @@ public class ControllerVerticle extends AbstractVerticle {
     private void logout(RoutingContext ctx) {
         this.spotifyAccessToken=null;
         this.accessToken=null;
+        this.resultDA=null;
         ctx.response().setStatusCode(200).end("Success");
     }
 
@@ -1798,8 +1821,9 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
                             System.out.println("In IF::: ");
                             getDat(mapData, userId,userDataMongoClient1).onComplete(ar -> {
                                 if (ar.succeeded()) {
-                                    Map<String, Object> result = ar.result();
-                                    System.out.println("Final Data: " + result);
+                                    //Map<String, Object> result = ar.result();
+                                    this.resultDA = ar.result();
+                                    System.out.println("Final Data: " + this.resultDA);
 
                                 } else {
                                     System.err.println("Failed to fetch data: " + ar.cause().getMessage());
@@ -1817,8 +1841,10 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
                                     //Map<String, List<JsonObject>> resultData = getDat(data,userId);
                                     getDat(data, userId,userDataMongoClient1).onComplete(ar -> {
                                         if (ar.succeeded()) {
-                                            Map<String, Object> result = ar.result();
-                                            System.out.println("Final Data: " + result);
+                                            //Map<String, Object> result = ar.result();
+                                            //System.out.println("Final Data: " + result);
+                                            this.resultDA = ar.result();
+                                            System.out.println("Final Data: " + this.resultDA);
                                         } else {
                                             System.err.println("Failed to fetch data: " + ar.cause().getMessage());
                                         }
