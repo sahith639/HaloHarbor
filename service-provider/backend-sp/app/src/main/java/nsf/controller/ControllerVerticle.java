@@ -130,6 +130,7 @@ public class ControllerVerticle extends AbstractVerticle {
         router.post("/auth/signup").handler(this::signupHandler);
         router.get("/api/secure-data").handler(this::authenticateJwt).handler(this::handleSecureData);
         router.get("/api/participants").handler(this::listParticipantss);
+        router.post("/api/compute").handler(this::computeHandlerFromRequest);
 
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9081"));
         HttpServerOptions options = new HttpServerOptions().setMaxFormAttributeSize(-1);
@@ -157,6 +158,54 @@ public class ControllerVerticle extends AbstractVerticle {
         JsonObject mongoConfig = new JsonObject().put("connection_string", "mongodb://host.docker.internal:27018").put("db_name",dbname);
         return MongoClient.createShared(vertx,mongoConfig,dbname);
     }
+
+    private void computeHandlerFromRequest(RoutingContext ctx) {
+        // Extract connId from the request body
+        JsonObject requestBody = ctx.getBodyAsJson();
+        String connId = requestBody.getString("connId");
+
+        if (connId != null) {
+            logger.info("Received connId: " + connId);
+            computeHandler(connId); // Call your existing computeHandler with the connId
+            ctx.response().setStatusCode(200).end("Compute triggered successfully.");
+        } else {
+            ctx.response().setStatusCode(400).end("connId is required.");
+        }
+    }
+
+    private void computeHandler(String connId) {
+        logger.info("computeHandler called for connId: " + connId);
+
+        // Directly send the basic message without checking MongoDB
+        logger.info("Compute called for connID " + connId);
+        sendBasicMessage(connId, "DATAACQ", new JsonObject(), null);
+
+        // Respond to the UI after computation
+        //ctx.response().setStatusCode(200).end("Computation triggered successfully.");
+    }
+
+
+    /**private void sendBasicMessage1(String connId, String messageTypeId, Object dataPayload, String messageId){
+        if (messageId == null) {
+            messageId = generateMsgId(connId);
+        }
+
+        JsonObject packagedJsonObj = new JsonObject()
+                .put("uniqueMessageId", messageId + "-" + String.valueOf(random.nextInt()))
+                .put("messageId", messageId)
+                .put("messageTypeId", messageTypeId)
+                .put("payload", dataPayload);
+
+        SendMessage basicMessageResponse = SendMessage.builder()
+                .content(packagedJsonObj.encode())
+                .build();
+
+        try {
+            ariesClient.connectionsSendMessage(connId, basicMessageResponse);
+        } catch (IOException e) {
+            logger.error("Failed to send info response to " + connId + ": " + e.toString());
+        }
+    }*/
 
     private void listParticipantss(RoutingContext ctx) {
         JsonObject query = new JsonObject(); // Fetch all documents

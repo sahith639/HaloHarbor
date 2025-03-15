@@ -19,12 +19,22 @@ const UsersList = () => {
         setSelectedUserId(userId);
 
         try {
-            const response = await fetch(`http://localhost:9081/api/const/${userId}`);
-            const data = await response.json();
-            console.log("Fetched data for user:", userId, data);
-            // Do something with the data from /api/const (e.g., show it in the UI)
+            // Make the request to the backend to trigger computeHandler
+            const response = await fetch(`http://localhost:9081/api/compute`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ connId: userId }), // Sending the selected connId
+            });
+
+            if (response.ok) {
+                console.log("Compute initiated successfully for connId:", userId);
+            } else {
+                console.error("Failed to trigger compute for connId:", userId);
+            }
         } catch (error) {
-            console.error("Error fetching user data:", error);
+            console.error("Error triggering compute:", error);
         }
     };
 

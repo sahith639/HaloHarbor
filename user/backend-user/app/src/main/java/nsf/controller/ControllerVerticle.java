@@ -1690,7 +1690,40 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
     logger.info("Received basic message: ");
 
     switch (messageTypeId) {
-      case "CONN_RESPONSE": {
+        case "DATAACQ": {
+            JsonObject userQuery = new JsonObject().put("connId", connId);
+            System.out.println("userQuery:: " + connId);
+
+            mongoClient.findOne("service_providers", userQuery, null, res -> {
+                if (res.succeeded()) {
+                    JsonObject existingData = res.result();
+
+                    if (existingData != null) {
+                        String userId = existingData.getString("userId");
+                        System.out.println("UserId: " + userId);
+
+                        // If userId is found, query the userDataAccess collection
+                        JsonObject userQuery1 = new JsonObject().put("userId", userId);
+
+                        userDataMongoClient.findOne("userDataAccess", userQuery1, null, res1 -> {
+                            if (res1.succeeded()) {
+                                JsonObject data = res1.result();
+                                System.out.println("Data: " + data.encode()); // Logging the data in a readable format
+                            } else {
+                                System.out.println("Error Extracting Data from userDataAccess");
+                            }
+                        });
+
+                    } else {
+                        System.out.println("Existing data not found for connId: " + connId);
+                    }
+                } else {
+                    System.out.println("Database query failed, User Not Found for connId: " + connId);
+                }
+            });
+            break;
+        }
+        case "CONN_RESPONSE": {
         JsonObject payloadData = (JsonObject) payload;
         var promise = waitingForConnResponse.remove(connId);
         promise.complete(payloadData);
