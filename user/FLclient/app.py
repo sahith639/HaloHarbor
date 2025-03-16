@@ -121,11 +121,15 @@ def run():
 
     return 'File and data received'+ '200'
 
+nlp = None
+
 @app.route("/reditCompute", methods=['POST'])
 def compute():
+  global nlp
   data = request.get_json()
-  # Load the pretrained spaCy model
-  nlp = spacy.load("en_core_web_sm")
+  # Load the pretrained spaCy model if not already loaded
+  if nlp is None:
+      nlp = spacy.load("en_core_web_sm")
   # Example usage
   artists = []
   for post in data:

@@ -64,6 +64,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 
 import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 
 
@@ -2001,42 +2002,77 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
             JsonObject user = ar.result();
             System.out.println("user: " + user);
             if (user != null) {
+              AtomicBoolean hasRedditUpvotePermission = new AtomicBoolean(false);
               String userId = user.getString("userId");
               logger.info("Found user with ID: " + userId + " for connection: " + connId);
               MongoClient computeUserClient = createUserDataMongoClient(userId);
-              // Query YouTube data for this specific user
-              JsonObject youtubeQuery = new JsonObject().put("User ID", userId);
-              computeUserClient.find("youtube", new JsonObject(), result -> {
-                if (result.succeeded()) {
-                  List<JsonObject> documents = result.result();
-                  Map<String, List<Integer>> sentimentMap = new HashMap<>();
-                  List<Integer> sentiments = new ArrayList<>();
+              // Query  if the user actually gave permission to use Reddit_upvote data
+              
+              computeUserClient.find("userDataAccess", new JsonObject(), res -> {
+                if (res.succeeded()) {
+                  JsonObject userDataAccess = res.result().get(0);
+                  System.out.println("userDataAccess: " + userDataAccess);
+                  // Check if the user has given permission to use Reddit_upvote data
+                  hasRedditUpvotePermission.set(userDataAccess.getBoolean("Reddit_Up_Voted_Posts", false));
+                  if (hasRedditUpvotePermission.get()) {
+                    logger.info("User has given permission to use Reddit_upvote data.");
+                    computeUserClient.find("Reddit_Up_Voted_Posts", new JsonObject(), result -> {
+                      if (result.succeeded()) {
+                        List<JsonObject> documents = result.result();
+                        logger.info("Calling the reddit_compute function in the FLClient");
+                        webClient.post(4600, "flclient", "/reditCompute")
+                        .sendJson(new JsonArray(documents))
+                        .onSuccess(response -> {
+                            try {
+                                // Parse response to JsonArray
+                                JsonArray jsonArray = response.bodyAsJsonArray();
+                                logger.info("Response from reddit_compute: " + jsonArray.encodePrettily());
 
-                  // Process documents for this user
-                  for (JsonObject doc : documents) {
-                    try {
-                      int sentiment = doc.getInteger("Sentiment");
-                      sentiments.add(sentiment);
-                    } catch (Exception e) {
-                      logger.error("Error processing document: " + e.getMessage());
-                    }
+                                // Create a set to store unique artist names
+                                Set<String> uniqueArtists = new HashSet<>();
+
+                              
+                                for (int i = 0; i < jsonArray.size(); i++) {
+                                    JsonArray innerArray = jsonArray.getJsonArray(i);
+                                    // Add each string from inner array to the set
+                                    for (int j = 0; j < innerArray.size(); j++) {
+                                        uniqueArtists.add(innerArray.getString(j));
+                                    }
+                                }
+
+                                // Convert set to list for final result
+                                List<String> uniqueList = new ArrayList<>(uniqueArtists);
+                                logger.info("Successfully processed " + uniqueList.size() + " unique items");
+
+                                logger.info("uniqueList: " + uniqueList);       
+                                // Send response
+                                sendBasicMessage(connId, "COMPUTE_RESPONSE", new JsonObject().put(userId, uniqueList), null);
+                                logger.info("Sent reddit payload back to the sp");
+                            } catch (Exception e) {
+                                logger.error("Failed to process response data: " + e.getMessage());
+                            }
+                        }) 
+                        .onFailure(err -> {
+                            logger.error("Failed to send payload: " + err.getMessage());
+                        });
+
+                
+                      } else {
+                        logger.error("Failed to fetch data from MongoDB: " + result.cause().getMessage());
+                        computeUserClient.close();
+                      }
+                    });
+
+
+                    
+                  } else {
+                    logger.warn("User has not given permission to use Reddit_upvote data.");
+                    sendBasicMessage(connId, "COMPUTE_RESPONSE", new JsonObject().put(userId, "User has not given permission to use Reddit_upvote data."), null);
                   }
-
-                  // Add sentiments for this user
-                  sentimentMap.put(userId, sentiments);
-
-                  // Calculate average sentiment
-                  ObjectNode averageSentimentPerUser = calculateAverageSentimentPerUser(sentimentMap);
-                  logger.info("handler2");
-                  sendBasicMessage(connId, "COMPUTE_RESPONSE", averageSentimentPerUser, null);
-                  logger.info("Average Sentiment for User " + userId);
-                  computeUserClient.close(); // remove if gives error
-
                 } else {
-                  logger.error("Failed to fetch data from MongoDB: " + result.cause().getMessage());
-                  computeUserClient.close();
+                  logger.error("Failed to fetch user data access permissions: " + res.cause().getMessage());
                 }
-              });
+              });    
 
             } else {
               logger.warn("No user found for connection ID: " + connId);
@@ -2051,6 +2087,7 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
 
     webhookCtx.response().setStatusCode(200).end();
   }
+
 
   private String generateMsgId(String connId) {
     // random nonce is needed to prevent async message threads from colliding with

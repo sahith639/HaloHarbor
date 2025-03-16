@@ -10,6 +10,7 @@ RUN pip install --no-binary h5py h5py
 RUN pip install --upgrade pip
 RUN pip install tensorflow
 RUN pip install -r requirements.txt
+RUN python -m spacy download en_core_web_sm
 COPY . .
 # Start the application
 CMD ["python", "-u","app.py"]
