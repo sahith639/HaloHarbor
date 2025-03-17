@@ -87,7 +87,7 @@ const UsersList = () => {
     // Handle fetch data on button click
     const handleFetchData = async () => {
         try {
-            const response = await fetch("http://localhost:9080/oauth/getDAData");
+            const response = await fetch("http://localhost:9081/oauth/getDAData");
             if (!response.ok) {
                 throw new Error("Failed to fetch data");
             }

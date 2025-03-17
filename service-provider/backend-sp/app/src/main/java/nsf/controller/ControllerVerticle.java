@@ -40,7 +40,9 @@ import java.util.Map;
 import nsf.util.JwtUtil;
 import io.vertx.core.json.Json;
 import java.util.stream.Collectors;
-
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 
 
 public class ControllerVerticle extends AbstractVerticle {
@@ -57,7 +59,8 @@ public class ControllerVerticle extends AbstractVerticle {
     private String addParticipantSPID;
     private ConcurrentHashMap<String, ConcurrentHashMap<Integer, String>> dataParts = new ConcurrentHashMap<>();
     Random random = new Random();
-    private String currentSPID; 
+    private String currentSPID;
+    private Map<String, Object> resultDA =null;
 
     private Boolean isUsingCredentials;
 
@@ -131,6 +134,7 @@ public class ControllerVerticle extends AbstractVerticle {
         router.get("/api/secure-data").handler(this::authenticateJwt).handler(this::handleSecureData);
         router.get("/api/participants").handler(this::listParticipantss);
         router.post("/api/compute").handler(this::computeHandlerFromRequest);
+        router.get("/oauth/getDAData").handler(this::getDAData);
 
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9081"));
         HttpServerOptions options = new HttpServerOptions().setMaxFormAttributeSize(-1);
@@ -274,6 +278,25 @@ public class ControllerVerticle extends AbstractVerticle {
               context.response().setStatusCode(500).end("Promise failed");
           }
       });
+    }
+
+    public void getDAData(RoutingContext ctx) {
+        if (this.resultDA == null) {
+            ctx.response().setStatusCode(500).end("{\"error\": \"No Data Found\"}");
+            return;
+        }
+
+        Map<String, Object> temp = resultDA;
+        resultDA = null;
+
+        try {
+            String jsonResponse = new ObjectMapper().writeValueAsString(temp);
+            ctx.response().putHeader("Content-Type", "application/json")
+                    .end(jsonResponse);
+        } catch (JsonProcessingException e) {
+            // Handle the exception if serialization fails
+            ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process data\"}");
+        }
     }
 
     private Future<Boolean> authenticateServiceProvider(String username, String  password){
@@ -1056,6 +1079,13 @@ public class ControllerVerticle extends AbstractVerticle {
         logger.info("Received basic message: " + messageTypeId);
 
         switch (messageTypeId){
+            case "DATAACQSP": // a user wants to get the current data menu info, etc.
+                System.out.println("In DATAACQSP:: ");
+                //Map<String, Object> resData = (Map<String, Object>) basicMessagePackage.getJsonObject("payload");
+                this.resultDA = basicMessagePackage.getJsonObject("payload").getMap();
+
+                System.out.println("PayloadData: "+resultDA);
+                break;
             case "ESTABLISH_DATA_CONN_REQUEST": // a user wants to establish a connection with us.
                 break;
             case "INFO_REQUEST": // a user wants to get the current data menu info, etc.

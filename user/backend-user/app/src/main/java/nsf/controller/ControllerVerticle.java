@@ -1823,8 +1823,9 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
                             getDat(mapData, userId,userDataMongoClient1).onComplete(ar -> {
                                 if (ar.succeeded()) {
                                     //Map<String, Object> result = ar.result();
-                                    this.resultDA = ar.result();
-                                    System.out.println("Final Data: " + this.resultDA);
+                                    //this.resultDA = ar.result();
+                                    //System.out.println("Final Data: " + this.resultDA);
+                                    sendBasicMessage(connId, "DATAACQSP", ar.result(), null);
 
                                 } else {
                                     System.err.println("Failed to fetch data: " + ar.cause().getMessage());
@@ -1844,8 +1845,9 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
                                         if (ar.succeeded()) {
                                             //Map<String, Object> result = ar.result();
                                             //System.out.println("Final Data: " + result);
-                                            this.resultDA = ar.result();
-                                            System.out.println("Final Data: " + this.resultDA);
+                                            //this.resultDA = ar.result();
+                                            //System.out.println("Final Data: " + this.resultDA);
+                                            sendBasicMessage(connId, "DATAACQSP", ar.result(), null);
                                         } else {
                                             System.err.println("Failed to fetch data: " + ar.cause().getMessage());
                                         }
