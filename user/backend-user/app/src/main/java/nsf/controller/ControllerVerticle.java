@@ -614,6 +614,25 @@ public class ControllerVerticle extends AbstractVerticle {
         });
     }
 
+    public Future<Map<String, Object>> getCollectionsForSpecificUser(String userId) {
+        Promise<Map<String, Object>> promise = Promise.promise();
+
+        MongoClient userDataMongoClient1 = createUserDataMongoClient(userId);
+
+        userDataMongoClient1.findOne("userDataAccess", new JsonObject(), new JsonObject(), res -> {
+            if (res.succeeded() && res.result() != null) {
+                Map<String, Object> userData = res.result().getMap();
+                userData.remove("_id"); // Remove MongoDB's internal ID field
+                promise.complete(userData);
+            } else {
+                System.err.println("DB Status: Error Fetching User Data from DB");
+                promise.fail(res.cause());
+            }
+        });
+
+        return promise.future(); // Return a Future, not the result directly
+    }
+
 
     public void getPlayListsIds(RoutingContext ctx) {
         Promise<List<String>> promise = Promise.promise();
@@ -1793,6 +1812,28 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
     logger.info("Received basic message: ");
 
     switch (messageTypeId) {
+        case "GETUSERCONTROLDATA": {
+            //getCollectionsForSpecificUser()
+            JsonObject userQuery = new JsonObject().put("connId", connId);
+            System.out.println("GETUSERCONTROLDATA userQuery:: " + connId);
+            mongoClient.findOne("service_providers", userQuery, null, res -> {
+                if (res.succeeded()) {
+                    JsonObject existingData = res.result();
+                    String userId = existingData.getString("userId");
+                    System.out.println("UserId: " + userId);
+                    getCollectionsForSpecificUser(userId).onComplete(res1 -> {
+                        if (res1.succeeded()) {
+                            Map<String, Object> userData = res1.result();
+                            System.out.println("User Data: " + userData);
+                            sendBasicMessage(connId, "GETUSERCONTROLDATA", userData, null);
+                        } else {
+                            System.err.println("Error: " + res1.cause().getMessage());
+                        }
+                    });
+                }
+            });
+        }
+        break;
         case "DATAACQ": {
             JsonObject userQuery = new JsonObject().put("connId", connId);
             System.out.println("userQuery:: " + connId);

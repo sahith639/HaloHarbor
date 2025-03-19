@@ -61,6 +61,7 @@ public class ControllerVerticle extends AbstractVerticle {
     Random random = new Random();
     private String currentSPID;
     private Map<String, Object> resultDA =null;
+    private Map<String, Object> resultUserControls =null;
 
     private Boolean isUsingCredentials;
 
@@ -135,6 +136,9 @@ public class ControllerVerticle extends AbstractVerticle {
         router.get("/api/participants").handler(this::listParticipantss);
         router.post("/api/compute").handler(this::computeHandlerFromRequest);
         router.get("/oauth/getDAData").handler(this::getDAData);
+        router.get("/oauth/getDADataList").handler(this::getDADataList);
+        router.get("/oauth/fetchUserList").handler(this::fetchUserControls);
+        router.post("/oauth/fetchUserControlData").handler(this::GetUserControlData);
 
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9081"));
         HttpServerOptions options = new HttpServerOptions().setMaxFormAttributeSize(-1);
@@ -163,6 +167,26 @@ public class ControllerVerticle extends AbstractVerticle {
         return MongoClient.createShared(vertx,mongoConfig,dbname);
     }
 
+    private void GetUserControlData(RoutingContext ctx) {
+        // Extract request body as JSON
+        JsonObject requestBody = ctx.getBodyAsJson();
+        String userId = requestBody.getString("userId");
+
+        if (userId != null) {
+            logger.info("Received GetUserControlData userId: " + userId);
+
+            // Remove userId from requestBody to get only the selected keys
+            requestBody.remove("userId");
+
+            // Call computeHandler with extracted data
+            computeHandler(userId, requestBody,"GETUSERCONTROLDATA");
+
+            ctx.response().setStatusCode(200).end("GetUserControlData triggered successfully.");
+        } else {
+            ctx.response().setStatusCode(400).end("userId is required.");
+        }
+    }
+
     private void computeHandlerFromRequest(RoutingContext ctx) {
         // Extract request body as JSON
         JsonObject requestBody = ctx.getBodyAsJson();
@@ -175,7 +199,7 @@ public class ControllerVerticle extends AbstractVerticle {
             requestBody.remove("userId");
 
             // Call computeHandler with extracted data
-            computeHandler(userId, requestBody);
+            computeHandler(userId, requestBody,"DATAACQ");
 
             ctx.response().setStatusCode(200).end("Compute triggered successfully.");
         } else {
@@ -183,14 +207,14 @@ public class ControllerVerticle extends AbstractVerticle {
         }
     }
 
-    private void computeHandler(String userId, JsonObject selectedData) {
+    private void computeHandler(String userId, JsonObject selectedData, String scenario) {
         logger.info("computeHandler called for userId: " + userId);
 
         // Log selected data for debugging
         logger.info("Selected data: " + selectedData.encodePrettily());
 
         // Send the selected data instead of an empty object
-        sendBasicMessage(userId, "DATAACQ", selectedData, null);
+        sendBasicMessage(userId, scenario, selectedData, null);
 
         // UI will receive a 200 response after processing
     }
@@ -278,6 +302,45 @@ public class ControllerVerticle extends AbstractVerticle {
               context.response().setStatusCode(500).end("Promise failed");
           }
       });
+    }
+
+    public void fetchUserControls(RoutingContext ctx) {
+        if (this.resultUserControls == null) {
+            ctx.response().setStatusCode(500).end("{\"error\": \"No Data Found\"}");
+            return;
+        }
+
+        Map<String, Object> temp = resultUserControls;
+        temp.remove("userId");
+        resultUserControls = null;
+
+        try {
+            String jsonResponse = new ObjectMapper().writeValueAsString(temp);
+            ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json")
+                    .end(jsonResponse);
+        } catch (JsonProcessingException e) {
+            // Handle the exception if serialization fails
+            ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process data\"}");
+        }
+    }
+
+    public void getDADataList(RoutingContext ctx) {
+        if (this.resultUserControls == null) {
+            ctx.response().setStatusCode(500).end("{\"error\": \"No Data Found\"}");
+            return;
+        }
+
+        Map<String, Object> temp = resultUserControls;
+        resultUserControls = null;
+
+        try {
+            String jsonResponse = new ObjectMapper().writeValueAsString(temp);
+            ctx.response().putHeader("Content-Type", "application/json")
+                    .end(jsonResponse);
+        } catch (JsonProcessingException e) {
+            // Handle the exception if serialization fails
+            ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process data\"}");
+        }
     }
 
     public void getDAData(RoutingContext ctx) {
@@ -1079,6 +1142,12 @@ public class ControllerVerticle extends AbstractVerticle {
         logger.info("Received basic message: " + messageTypeId);
 
         switch (messageTypeId){
+            case "GETUSERCONTROLDATA": // a user wants to get the current data menu info, etc.
+                System.out.println("In GETUSERCONTROLDATA:: ");
+                this.resultUserControls= basicMessagePackage.getJsonObject("payload").getMap();
+
+                System.out.println("GETUSERCONTROLDATA PayloadData: "+resultUserControls);
+                break;
             case "DATAACQSP": // a user wants to get the current data menu info, etc.
                 System.out.println("In DATAACQSP:: ");
                 //Map<String, Object> resData = (Map<String, Object>) basicMessagePackage.getJsonObject("payload");

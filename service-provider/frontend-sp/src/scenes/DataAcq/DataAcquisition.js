@@ -1,24 +1,14 @@
 import React, { useState } from "react";
-import { toast, ToastContainer } from "react-toastify"; // Correct import for toast and ToastContainer
-import "react-toastify/dist/ReactToastify.css"; // Import styles for toastify
-import styles from './UsersList.module.css'; // Import the CSS module
+import { toast, ToastContainer } from "react-toastify"; // Toast notifications
+import "react-toastify/dist/ReactToastify.css"; // Toast styles
+import styles from './UsersList.module.css'; // Import CSS module
 
 const UsersList = () => {
     const [users, setUsers] = useState([]);
     const [selectedUserId, setSelectedUserId] = useState("");
     const [checkedValues, setCheckedValues] = useState({});
     const [data, setData] = useState(""); // State to hold fetched data
-    const [isFetchEnabled, setIsFetchEnabled] = useState(false); // State to enable fetch button
-
-    // List of checkboxes with default checked state
-    const checkboxItems = [
-        "Reddit_Up_Voted_Posts",
-        "Reddit_Saved_Posts",
-        "Reddit_Doen_Voted_Posts",
-        "spotify_data",
-        "spotify_data_DataPlaylists",
-        "spotify_data_PlayListsSongs"
-    ];
+    const [isFetchEnabled, setIsFetchEnabled] = useState(false); // Enable fetch button
 
     // Fetch users list
     const fetchUsers = async () => {
@@ -28,23 +18,44 @@ const UsersList = () => {
             setUsers(data); // Assuming data is an array of user IDs
         } catch (error) {
             console.error("Error fetching users:", error);
+            toast.error("Error fetching users!");
         }
     };
 
-    // Handle user selection
-    const handleUserSelect = (event) => {
+    // Handle user selection from dropdown
+    const handleUserSelect = async (event) => {
         const userId = event.target.value;
         setSelectedUserId(userId);
 
-        // Initialize the checked values (all true initially)
-        const initialCheckedValues = {};
-        checkboxItems.forEach(item => {
-            initialCheckedValues[item] = true;
-        });
-        setCheckedValues(initialCheckedValues);
+        try {
+            // Step 1: Call fetchUserControlData
+            const controlResponse = await fetch("http://localhost:9081/oauth/fetchUserControlData", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId })
+            });
+
+            if (!controlResponse.ok) throw new Error("Failed to fetch user control data");
+
+            // Step 2: Wait for 3 seconds before calling fetchUserList
+            await new Promise(resolve => setTimeout(resolve, 3000));
+
+            // Step 3: Fetch user list (which is a Map)
+            const listResponse = await fetch("http://localhost:9081/oauth/fetchUserList");
+            if (!listResponse.ok) throw new Error("Failed to fetch user list");
+
+            const fetchedData = await listResponse.json(); // Expecting a Map<String, Boolean>
+
+            setCheckedValues(fetchedData); // Update checkboxes dynamically
+
+        } catch (error) {
+            console.error("Error fetching user data:", error);
+            toast.error("Error fetching user data!");
+        }
     };
 
-    // Handle checkbox change
+
+    // Handle checkbox toggle
     const handleCheckboxChange = (key) => {
         setCheckedValues(prevState => ({
             ...prevState,
@@ -54,25 +65,19 @@ const UsersList = () => {
 
     // Handle form submission
     const handleSubmit = async () => {
-        // Construct request payload (direct key-value pairs)
         const payload = {
             userId: selectedUserId,
-            ...Object.fromEntries(
-                Object.entries(checkedValues).filter(([_, value]) => value === true)
-            )
+            ...Object.fromEntries(Object.entries(checkedValues).filter(([_, value]) => value))
         };
 
         try {
             const response = await fetch("http://localhost:9081/api/compute", {
                 method: "POST",
-                headers: {
-                    "Content-Type": "application/json",
-                },
+                headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(payload),
             });
 
             if (response.ok) {
-                // Show success toast notification
                 toast.success("Data submitted successfully!");
                 setIsFetchEnabled(true); // Enable fetch button after successful submission
             } else {
@@ -88,11 +93,10 @@ const UsersList = () => {
     const handleFetchData = async () => {
         try {
             const response = await fetch("http://localhost:9081/oauth/getDAData");
-            if (!response.ok) {
-                throw new Error("Failed to fetch data");
-            }
+            if (!response.ok) throw new Error("Failed to fetch data");
+
             const result = await response.json();
-            setData(JSON.stringify(result, null, 2)); // Format the fetched data for display
+            setData(JSON.stringify(result, null, 2)); // Format the fetched data
         } catch (error) {
             console.error("Error fetching data:", error);
             toast.error("Error fetching data!");
@@ -107,26 +111,24 @@ const UsersList = () => {
             <select className={styles.select} onChange={handleUserSelect} value={selectedUserId}>
                 <option value="">Select a User</option>
                 {users.map((userId, index) => (
-                    <option key={index} value={userId}>
-                        {userId}
-                    </option>
+                    <option key={index} value={userId}>{userId}</option>
                 ))}
             </select>
 
-            {/* Display checkboxes if a user is selected */}
-            {selectedUserId && (
+            {/* Dynamically render checkboxes if a user is selected */}
+            {selectedUserId && Object.keys(checkedValues).length > 0 && (
                 <div>
                     <h3 className={styles.heading}>Available Data Collections</h3>
-                    {checkboxItems.map((item) => (
-                        <div key={item}>
+                    {Object.entries(checkedValues).map(([key, value]) => (
+                        <div key={key}>
                             <label className={styles.label}>
                                 <input
                                     type="checkbox"
                                     className={styles.checkbox}
-                                    checked={checkedValues[item]}
-                                    onChange={() => handleCheckboxChange(item)}
+                                    checked={value}
+                                    onChange={() => handleCheckboxChange(key)}
                                 />
-                                {item}
+                                {key}
                             </label>
                         </div>
                     ))}
