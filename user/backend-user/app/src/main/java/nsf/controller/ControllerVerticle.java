@@ -309,7 +309,7 @@ public class ControllerVerticle extends AbstractVerticle {
                 .sendForm(form, ar -> {
                     if (ar.succeeded()) {
                         HttpResponse<Buffer> response = ar.result();
-                        System.out.println("response body:: " + response.bodyAsString());
+//                        System.out.println("response body:: " + response.bodyAsString());
                         JsonObject responseBody = response.bodyAsJsonObject();
                         accessToken = responseBody.getString("access_token");
                         System.out.println("accessToken:: " + accessToken);
@@ -453,7 +453,7 @@ public class ControllerVerticle extends AbstractVerticle {
                     if(ar.succeeded()) {
                         try {
                             String responseBody = ar.result().bodyAsString();
-                            System.out.println("Response body:: " + responseBody);
+//                            System.out.println("Response body:: " + responseBody);
                             //String filteredJson = filterJson(responseBody);
                             Map<String,Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
                             ctx.response().putHeader("Content-Type", "application/json")
@@ -870,7 +870,7 @@ public class ControllerVerticle extends AbstractVerticle {
                 .sendForm(form, ar -> {  // ✅ Send form instead of JSON
                     if (ar.succeeded()) {
                         HttpResponse<Buffer> response = ar.result();
-                        System.out.println("response body:: " + response.bodyAsString());
+//                        System.out.println("response body:: " + response.bodyAsString());
                         JsonObject responseBody = response.bodyAsJsonObject();
                         spotifyAccessToken = responseBody.getString("access_token");
                         System.out.println("accessToken:: " + spotifyAccessToken);
@@ -895,7 +895,7 @@ public class ControllerVerticle extends AbstractVerticle {
                     if(ar.succeeded()) {
                         try {
                             String responseBody = ar.result().bodyAsString();
-                            System.out.println("Spotify Response body:: " + responseBody);
+//                            System.out.println("Spotify Response body:: " + responseBody);
                             //String filteredJson = filterJson(responseBody);
                             Map<String,Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
                             ctx.response().putHeader("Content-Type", "application/json")
@@ -951,7 +951,7 @@ public class ControllerVerticle extends AbstractVerticle {
                     if (ar.succeeded()) {
                         try {
                             String responseBody = ar.result().bodyAsString();
-                            System.out.println("Response Body: " + responseBody);
+//                            System.out.println("Response Body: " + responseBody);
 
                             Map<String, Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
                             List<Map<String, Object>> items = (List<Map<String, Object>>) result.get("items");
@@ -1048,7 +1048,7 @@ public class ControllerVerticle extends AbstractVerticle {
                     if(ar.succeeded()) {
                         try {
                             String responseBody = ar.result().bodyAsString();
-                            System.out.println("Spotify Response body:: " + responseBody);
+//                            System.out.println("Spotify Response body:: " + responseBody);
                             //String filteredJson = filterJson(responseBody);
                             Map<String,Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
                             ctx.response().putHeader("Content-Type", "application/json")
