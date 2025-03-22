@@ -342,6 +342,16 @@ public class ControllerVerticle extends AbstractVerticle {
             ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process data\"}");
         }
     }
+    private void insertNewData(Map<String, Object> map) {
+        JsonObject document = new JsonObject(map);
+        mongoClient.insert("ControlAccessData", document, insertRes -> {
+            if (insertRes.succeeded()) {
+                logger.info("Inserted new data into ControlAccessData:");
+            } else {
+                logger.error("Insert Failed: " + insertRes.cause().getMessage());
+            }
+        });
+    }
 
     public void getDAData(RoutingContext ctx) {
         if (this.resultDA == null) {
@@ -353,6 +363,29 @@ public class ControllerVerticle extends AbstractVerticle {
         resultDA = null;
 
         try {
+            JsonObject query = new JsonObject();
+
+            mongoClient.find("ControlAccessData", query, res -> {
+                if (res.succeeded()) {
+                    List<JsonObject> existingRecords = res.result();
+
+                    if (!existingRecords.isEmpty()) {
+                        mongoClient.removeDocuments("ControlAccessData", query, deleteRes -> {
+                            if (deleteRes.succeeded()) {
+                                logger.info("Existing data deleted from ControlAccessData");
+                                insertNewData(temp);
+                            } else {
+                                logger.error("Failed to delete existing data: " + deleteRes.cause().getMessage());
+                            }
+                        });
+                    } else {
+                        insertNewData(temp);
+                    }
+                } else {
+                    logger.error("Query Failed: " + res.cause().getMessage());
+                }
+            });
+
             String jsonResponse = new ObjectMapper().writeValueAsString(temp);
             ctx.response().putHeader("Content-Type", "application/json")
                     .end(jsonResponse);
