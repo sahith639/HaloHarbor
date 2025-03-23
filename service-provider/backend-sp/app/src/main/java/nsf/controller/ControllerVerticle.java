@@ -187,6 +187,59 @@ public class ControllerVerticle extends AbstractVerticle {
         }
     }
 
+    private void storeAccessControls(Map<String, Object> requestData) {
+        String userId = (String) requestData.get("userId");
+        if (userId == null) {
+            logger.error("userId is missing in request data");
+            return;
+        }
+
+        JsonObject query = new JsonObject().put("userId", userId); // Query by userId
+
+        mongoClient.find("UserAccessControls", query, res -> {
+            if (res.succeeded()) {
+                List<JsonObject> existingRecords = res.result();
+                List<Map<String, Object>> accessList = new ArrayList<>();
+
+                // Add new data as the only list item
+                accessList.add(requestData);
+
+                if (!existingRecords.isEmpty()) {
+                    // If a document exists, delete the existing accessList and replace it with the new one
+                    JsonObject updateQuery = new JsonObject()
+                            .put("$set", new JsonObject().put("accessList", accessList));
+
+                    mongoClient.updateCollection("UserAccessControls", query, updateQuery, updateRes -> {
+                        if (updateRes.succeeded()) {
+                            logger.info("Access list replaced for userId: " + userId);
+                        } else {
+                            logger.error("Failed to replace access list: " + updateRes.cause().getMessage());
+                        }
+                    });
+
+                } else {
+                    // If no document exists, create a new one
+                    JsonObject newData = new JsonObject()
+                            .put("userId", userId)
+                            .put("accessList", accessList);
+
+                    mongoClient.save("UserAccessControls", newData, insertRes -> {
+                        if (insertRes.succeeded()) {
+                            logger.info("New user access data inserted for userId: " + userId);
+                        } else {
+                            logger.error("Failed to insert new data: " + insertRes.cause().getMessage());
+                        }
+                    });
+                }
+            } else {
+                logger.error("Query Failed: " + res.cause().getMessage());
+            }
+        });
+    }
+
+
+
+
     private void computeHandlerFromRequest(RoutingContext ctx) {
         // Extract request body as JSON
         JsonObject requestBody = ctx.getBodyAsJson();
@@ -194,6 +247,12 @@ public class ControllerVerticle extends AbstractVerticle {
 
         if (userId != null) {
             logger.info("Received userId: " + userId);
+            /** Write logic to store Access Control*/
+            Map<String, Object> requestData = requestBody.getMap();
+            System.out.println("Request Data: " + requestData);
+
+            storeAccessControls(requestData);
+
 
             // Remove userId from requestBody to get only the selected keys
             requestBody.remove("userId");
