@@ -1812,6 +1812,80 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
     logger.info("Received basic message: ");
 
     switch (messageTypeId) {
+        case "COMPUTENEW":
+        {
+            JsonObject userQuery = new JsonObject().put("connId", connId);
+            mongoClient.findOne("service_providers", userQuery, null, ar -> {
+                if (ar.succeeded()) {
+                    JsonObject user = ar.result();
+                    if (user != null) {
+                        String userId = user.getString("userId");
+                        logger.info("Found user with ID: " + userId + " for connection: " + connId);
+                        MongoClient computeUserClient = createUserDataMongoClient(userId);
+
+                        // Convert JsonObject to a Map<String, Boolean>
+                        Map<String, Object> accessList =((JsonObject) payload).getMap();
+
+                        for (String collectionName : accessList.keySet()) {
+                            logger.info("Fetching data from collection: " + collectionName);
+
+                            computeUserClient.find(collectionName, new JsonObject(), result -> {
+                                if (result.succeeded()) {
+                                    List<JsonObject> documents = result.result();
+                                    logger.info("Successfully fetched data from collection: " + collectionName);
+
+                                    // Perform web client POST call
+                                    webClient.post(4600, "flclient", "/reditCompute")
+                                            .sendJson(new JsonArray(documents))
+                                            .onSuccess(response -> {
+                                                try {
+                                                    // Parse response to JsonArray
+                                                    JsonArray jsonArray = response.bodyAsJsonArray();
+                                                    logger.info("Response from reddit_compute: " + jsonArray.encodePrettily());
+
+                                                    // Create a set to store unique artist names
+
+                                                    Set<String> uniqueArtists = new HashSet<>();
+
+
+                                                    for (int i = 0; i < jsonArray.size(); i++) {
+                                                        JsonArray innerArray = jsonArray.getJsonArray(i);
+                                                        // Add each string from inner array to the set
+                                                        for (int j = 0; j < innerArray.size(); j++) {
+                                                            uniqueArtists.add(innerArray.getString(j));
+                                                        }
+                                                    }
+
+                                                    // Convert set to list for final result
+                                                    List<String> uniqueList = new ArrayList<>(uniqueArtists);
+                                                    logger.info("Successfully processed " + uniqueList.size() + " unique items");
+
+                                                    logger.info("uniqueList: " + uniqueList);
+                                                    // Send response
+                                                    sendBasicMessage(connId, "COMPUTE_RESPONSE", new JsonObject().put(userId+"_"+collectionName, uniqueList), null);
+                                                    logger.info("Sent reddit payload back to the sp");
+                                                } catch (Exception e) {
+                                                    logger.error("Failed to process response data: " + e.getMessage());
+                                                }
+                                            })
+                                            .onFailure(err -> {
+                                                logger.error("Failed to send payload: " + err.getMessage());
+                                            });
+                                } else {
+                                    logger.error("Failed to fetch data from collection: " + collectionName + " - " + result.cause().getMessage());
+                                }
+                            });
+                        }
+
+                    } else {
+                        logger.warn("No user found for connection ID: " + connId);
+                    }
+                } else {
+                    logger.error("Failed to query user for connection ID: " + connId, ar.cause());
+                }
+            });
+        }
+        break;
         case "GETUSERCONTROLDATA": {
             //getCollectionsForSpecificUser()
             JsonObject userQuery = new JsonObject().put("connId", connId);

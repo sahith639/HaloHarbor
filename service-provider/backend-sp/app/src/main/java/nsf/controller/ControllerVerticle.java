@@ -123,7 +123,7 @@ public class ControllerVerticle extends AbstractVerticle {
         router.get("/collected-data").handler(this::getCollectedData);
 
         router.post("/train").handler(this::trainHandler);
-        router.get("/compute").handler(this::computeHandler);
+        router.get("/compute").handler(this::computeHandlerNew);
         router.get("/get-logs").handler(this::computeLogHandler);
 
         router.post("/webhook/topic/basicmessages").handler(this::BasicMessageHandler);
@@ -1026,6 +1026,50 @@ public class ControllerVerticle extends AbstractVerticle {
             .end(computationLog.encode());
             return;
     }
+
+    private void computeHandlerNew(RoutingContext ctx) {
+        logger.info("Handler started: Fetching data from UserAccessControls");
+
+        mongoClient.find("UserAccessControls", new JsonObject()) // Fetch all documents from UserAccessControls
+                .onSuccess(results -> {
+                    if (results.isEmpty()) {
+                        ctx.response().setStatusCode(500).end();
+                        logger.info("Compute handler: No user entries found - rejecting shared data.");
+                        return;
+                    }
+
+                    for (JsonObject record : results) {
+                        String userId = record.getString("userId");
+                        JsonArray accessListArray = record.getJsonArray("accessList");
+
+                        if (userId == null || accessListArray == null) {
+                            logger.warn("Skipping record due to missing userId or accessList");
+                            continue;
+                        }
+
+
+                        Map<String, Object> accessList = new HashMap<>();
+                        for (Object obj : accessListArray) {
+                            if (obj instanceof JsonObject) {
+                                accessList.putAll(((JsonObject) obj).getMap());
+                            }
+                        }
+
+                        logger.info("Compute called for userId: " + userId);
+                        logger.info("Access List: " + accessList);
+
+                        sendBasicMessage(userId, "COMPUTENEW", new JsonObject(accessList), null);
+                    }
+
+                    ctx.response().setStatusCode(200).end();
+                })
+                .onFailure(err -> {
+                    logger.error("Failed to fetch data from UserAccessControls: " + err.getMessage());
+                    ctx.response().setStatusCode(500).end();
+                });
+    }
+
+
     private void computeHandler(RoutingContext ctx) {
             logger.info("handler1");
                 var jsonData = new JsonObject();
