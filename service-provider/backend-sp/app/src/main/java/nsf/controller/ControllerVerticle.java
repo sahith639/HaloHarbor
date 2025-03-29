@@ -244,6 +244,7 @@ public class ControllerVerticle extends AbstractVerticle {
         // Extract request body as JSON
         JsonObject requestBody = ctx.getBodyAsJson();
         String userId = requestBody.getString("userId");
+        this.computationLog = new JsonObject();
 
         if (userId != null) {
             logger.info("Received userId: " + userId);
