@@ -1,23 +1,24 @@
 import React, { useState } from "react";
-import { toast, ToastContainer } from "react-toastify"; // Toast notifications
-import "react-toastify/dist/ReactToastify.css"; // Toast styles
-import styles from './UsersList.module.css'; // Import CSS module
+import { toast, ToastContainer } from "react-toastify";
+import "react-toastify/dist/ReactToastify.css";
+import styles from './UsersList.module.css';
 
 const UsersList = () => {
     const [users, setUsers] = useState([]);
     const [selectedUserId, setSelectedUserId] = useState("");
     const [checkedValues, setCheckedValues] = useState({});
-    const [data, setData] = useState(""); // State to hold fetched data
-    const [isFetchEnabled, setIsFetchEnabled] = useState(false); // Enable fetch button
-    const [log, setLog] = useState(""); // State for computation logs
-    const [showComputationControls, setShowComputationControls] = useState(false); // Control visibility of computation section
+    const [data, setData] = useState("");
+    const [isFetchEnabled, setIsFetchEnabled] = useState(false);
+    const [log, setLog] = useState("");
+    const [showComputationControls, setShowComputationControls] = useState(false);
+    const [isLoadingDataCollections, setIsLoadingDataCollections] = useState(false);
 
     // Fetch users list
     const fetchUsers = async () => {
         try {
             const response = await fetch("http://localhost:9081/api/participants");
             const data = await response.json();
-            setUsers(data); // Assuming data is an array of user IDs
+            setUsers(data);
         } catch (error) {
             console.error("Error fetching users:", error);
             toast.error("Error fetching users!");
@@ -28,9 +29,9 @@ const UsersList = () => {
     const handleUserSelect = async (event) => {
         const userId = event.target.value;
         setSelectedUserId(userId);
+        setIsLoadingDataCollections(true);
 
         try {
-            // Step 1: Call fetchUserControlData
             const controlResponse = await fetch("http://localhost:9081/oauth/fetchUserControlData", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -39,20 +40,19 @@ const UsersList = () => {
 
             if (!controlResponse.ok) throw new Error("Failed to fetch user control data");
 
-            // Step 2: Wait for 3 seconds before calling fetchUserList
             await new Promise(resolve => setTimeout(resolve, 3000));
 
-            // Step 3: Fetch user list (which is a Map)
             const listResponse = await fetch("http://localhost:9081/oauth/fetchUserList");
             if (!listResponse.ok) throw new Error("Failed to fetch user list");
 
-            const fetchedData = await listResponse.json(); // Expecting a Map<String, Boolean>
-
-            setCheckedValues(fetchedData); // Update checkboxes dynamically
+            const fetchedData = await listResponse.json();
+            setCheckedValues(fetchedData);
 
         } catch (error) {
             console.error("Error fetching user data:", error);
             toast.error("Error fetching user data!");
+        } finally {
+            setIsLoadingDataCollections(false);
         }
     };
 
@@ -60,11 +60,11 @@ const UsersList = () => {
     const handleCheckboxChange = (key) => {
         setCheckedValues(prevState => ({
             ...prevState,
-            [key]: !prevState[key] // Toggle true/false
+            [key]: !prevState[key]
         }));
     };
 
-    // Handle form submission
+    // Handle form submission - THIS WAS MISSING
     const handleSubmit = async () => {
         const payload = {
             userId: selectedUserId,
@@ -80,8 +80,8 @@ const UsersList = () => {
 
             if (response.ok) {
                 toast.success("Data submitted successfully!");
-                setIsFetchEnabled(true); // Enable fetch button after successful submission
-                setShowComputationControls(true); // Show computation controls after submission
+                setIsFetchEnabled(true);
+                setShowComputationControls(true);
             } else {
                 throw new Error("Failed to submit data");
             }
@@ -98,7 +98,7 @@ const UsersList = () => {
             if (!response.ok) throw new Error("Failed to fetch data");
 
             const result = await response.json();
-            setData(JSON.stringify(result, null, 2)); // Format the fetched data
+            setData(JSON.stringify(result, null, 2));
         } catch (error) {
             console.error("Error fetching data:", error);
             toast.error("Error fetching data!");
@@ -147,7 +147,7 @@ const UsersList = () => {
             }
 
             const data = await response.json();
-            const jsonString = JSON.stringify(data, null, 4); // Use 4 spaces for indentation
+            const jsonString = JSON.stringify(data, null, 4);
             const multiLineString = jsonString.replace(/(?:\\[rn]|[\r\n]+)+/g, '\n');
             console.log(multiLineString);
             setLog(multiLineString);
@@ -164,7 +164,6 @@ const UsersList = () => {
             <div className={styles.section}>
                 <button className={styles.button} onClick={fetchUsers}>Fetch Users</button>
 
-                {/* Dropdown to select a user */}
                 <select className={styles.select} onChange={handleUserSelect} value={selectedUserId}>
                     <option value="">Select a User</option>
                     {users.map((userId, index) => (
@@ -172,8 +171,14 @@ const UsersList = () => {
                     ))}
                 </select>
 
-                {/* Dynamically render checkboxes if a user is selected */}
-                {selectedUserId && Object.keys(checkedValues).length > 0 && (
+                {isLoadingDataCollections && (
+                    <div className={styles.loadingContainer}>
+                        <div className={styles.loadingSpinner}></div>
+                        <p>Loading Available Data Collections...</p>
+                    </div>
+                )}
+
+                {selectedUserId && Object.keys(checkedValues).length > 0 && !isLoadingDataCollections && (
                     <div className={styles.section}>
                         <h3 className={styles.subHeading}>Available Data Collections</h3>
                         {Object.entries(checkedValues).map(([key, value]) => (
@@ -193,7 +198,6 @@ const UsersList = () => {
                     </div>
                 )}
 
-                {/* Display the fetch button and textarea */}
                 {isFetchEnabled && (
                     <div className={styles.section}>
                         <button className={styles.button} onClick={handleFetchData}>Fetch Data</button>
@@ -209,7 +213,6 @@ const UsersList = () => {
                 )}
             </div>
 
-            {/* Show Computation Controls only after submission */}
             {showComputationControls && (
                 <div className={styles.section}>
                     <h2 className={styles.heading}>Computation Controls</h2>
@@ -230,7 +233,6 @@ const UsersList = () => {
                 </div>
             )}
 
-            {/* Toast container for notifications */}
             <ToastContainer />
         </div>
     );
