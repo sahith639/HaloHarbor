@@ -115,6 +115,13 @@ public class ControllerVerticle extends AbstractVerticle {
     private String accessToken = null;
     private String userName = null;
 
+    private String stravaAuthUrl = "https://www.strava.com/oauth/authorize";
+    private String stravaClientId = "153712";
+    private String stravaClientSecret = "c27b20d779a07e94b3cbb537363f46b79163df72";
+    private String stravaRedirectUri = "http://localhost:9080/oauth/strava/callback";
+    private String stravaTokenUrl = "https://www.strava.com/oauth/token";
+    private String stravaAccessToken = null;
+
     private String spotifyClientId = "bdeca1b0168b4dcfb8f69148dbeb41da";
     private String spotifyClientSecret = "1f0ce4a445fc4bde9a89d602e4dd30db";
     private String spotifyTokenUrl = "https://accounts.spotify.com/api/token";
@@ -248,7 +255,9 @@ public class ControllerVerticle extends AbstractVerticle {
       router.get("/oauth/spotify/getPlaylists").handler(this::getUserSavedPlaylists);
 
       router.get("/oauth/reddit/login").handler(this::redirectToReddit);
+      router.get("/oauth/strava/login").handler(this::redirectToStrava);
       router.get("/oauth/reddit/callback").handler(this::getToken);
+      router.get("/oauth/strava/callback").handler(this::getStravaToken);
       router.get("/oauth/reddit/savedPosts").handler(this::getUserSavedPosts);
       router.get("/oauth/reddit/upVoted").handler(this::getUserUpVotedPosts);
       router.get("/oauth/reddit/downVoted").handler(this::getUserDownVotedPosts);
@@ -278,6 +287,49 @@ public class ControllerVerticle extends AbstractVerticle {
         })
         .onFailure(promise::fail);
   }
+
+    private void redirectToStrava(RoutingContext ctx) {
+        String url = stravaAuthUrl + "?client_id=" + stravaClientId +
+                "&response_type=code" +
+                "&state=random_string" +
+                "&redirect_uri=" + stravaRedirectUri +
+                "&approval_prompt=force" +
+                "&scope=activity:read_all";
+        ctx.response().setStatusCode(302).putHeader("Location", url).end();
+    }
+
+
+    private void getStravaToken(RoutingContext ctx) {
+        String code = ctx.request().getParam("code");
+        System.out.println("getStravaToken code:: " + code);
+        if (code == null) {
+            ctx.response().setStatusCode(400).end("Missing authorization code");
+            return;
+        }
+
+        MultiMap form = MultiMap.caseInsensitiveMultiMap();
+        form.add("grant_type", "authorization_code");
+        form.add("code", code);
+        form.add("client_id", stravaClientId);
+        form.add("client_secret", stravaClientSecret);
+
+        webClient.postAbs(stravaTokenUrl)
+                .basicAuthentication(stravaClientId, stravaClientId)
+                .putHeader("Content-Type", "application/x-www-form-urlencoded")
+                .putHeader("Content-Length", String.valueOf(form.toString().length()))
+                .sendForm(form, ar -> {
+                    if (ar.succeeded()) {
+                        HttpResponse<Buffer> response = ar.result();
+//                        System.out.println("response body:: " + response.bodyAsString());
+                        JsonObject responseBody = response.bodyAsJsonObject();
+                        stravaAccessToken = responseBody.getString("access_token");
+                        System.out.println("stravaAccessToken:: " + stravaAccessToken);
+                        ctx.response().setStatusCode(302).putHeader("Location", "http://localhost:3001/oauth").end();
+                    } else {
+                        ctx.response().setStatusCode(400).end("OAuth failed");
+                    }
+                });
+    }
 
     private void redirectToReddit(RoutingContext ctx) {
         String url = authUrl + "?client_id=" + clientId +
