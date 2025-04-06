@@ -1139,7 +1139,7 @@ public class ControllerVerticle extends AbstractVerticle {
                                     for (int i = 0; i < n; i++) {
                                         final String divided_str = divided[i];   
                                         logger.info("CLient" + data.getString("client_id") + "Piece :" + Integer.toString(i));
-                                        sendBasicMessage(connId, "TRAIN", new JsonObject().put("client_id",data.getString("client_id")).put("id",i).put("total",pieces).put("value",divided_str), null);
+                                        sendBasicMessage(connId, "TRAIN", new JsonObject().put("client_id",connId).put("id",i).put("total",pieces).put("value",divided_str), null);
                                 
                                     }
                                 });

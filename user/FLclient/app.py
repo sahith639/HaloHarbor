@@ -59,7 +59,7 @@ def trainClient(client_id,epochs):
   model = create_model()
   filepath = f"global_update.pkl"
   loaded_model = load_weights_from_pkl(model, filepath)
-  data=pd.read_csv(f"./iris_data_{client_id}.csv")
+  data=pd.read_csv(f"./iris_data_0.csv")
   X=data.iloc[:,1:5].values
   y=data.iloc[:,5].values
   X_normalized=normalize(X,axis=0)
