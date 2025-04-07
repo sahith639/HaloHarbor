@@ -59,11 +59,28 @@ const OAuthIntegration = () => {
                         <button className="oauth-button login-button">Login with Reddit</button>
                     </a>
                     <div className="oauth-button-group">
-                        <button className="oauth-button spaced-button" onClick={() => fetchData('http://localhost:9080/oauth/reddit/fetchSavedPosts')}>Get Saved Posts</button>
-                        <button className="oauth-button spaced-button" onClick={() => fetchData('http://localhost:9080/oauth/reddit/upVotedPosts')}>Get UpVoted Posts</button>
-                        <button className="oauth-button spaced-button" onClick={() => fetchData('http://localhost:9080/oauth/reddit/downVotedPosts')}>Get DownVoted Posts</button>
+                        <button className="oauth-button spaced-button"
+                                onClick={() => fetchData('http://localhost:9080/oauth/reddit/fetchSavedPosts')}>Get
+                            Saved Posts
+                        </button>
+                        <button className="oauth-button spaced-button"
+                                onClick={() => fetchData('http://localhost:9080/oauth/reddit/upVotedPosts')}>Get UpVoted
+                            Posts
+                        </button>
+                        <button className="oauth-button spaced-button"
+                                onClick={() => fetchData('http://localhost:9080/oauth/reddit/downVotedPosts')}>Get
+                            DownVoted Posts
+                        </button>
                     </div>
                 </div>
+
+                {/* Strava OAuth Section
+                <div className="oauth-section">
+                    <h2 className="oauth-title">Strava OAuth Integration</h2>
+                    <a href="http://localhost:9080/oauth/strava/login">
+                        <button className="oauth-button login-button">Login with Strava</button>
+                    </a>
+                </div>*/}
 
                 {/* Spotify OAuth Section */}
                 <div className="oauth-section">
@@ -72,13 +89,19 @@ const OAuthIntegration = () => {
                         <button className="oauth-button login-button">Login with Spotify</button>
                     </a>
                     <div className="oauth-button-group">
-                        <button className="oauth-button spaced-button" onClick={() => fetchData('http://localhost:9080/oauth/spotify/getTopArt')}>Top Artists</button>
-                        <button className="oauth-button spaced-button" onClick={() => fetchData('http://localhost:9080/oauth/spotify/getUserPlaylists')}>Fetch Playlists</button>
+                        <button className="oauth-button spaced-button"
+                                onClick={() => fetchData('http://localhost:9080/oauth/spotify/getTopArt')}>Top Artists
+                        </button>
+                        <button className="oauth-button spaced-button"
+                                onClick={() => fetchData('http://localhost:9080/oauth/spotify/getUserPlaylists')}>Fetch
+                            Playlists
+                        </button>
                     </div>
 
                     {/* Dropdown to select a Playlist */}
                     <div className="dropdown-container">
-                        <button className="oauth-button spaced-button" onClick={fetchPlaylistIds}>Get Playlist IDs</button>
+                        <button className="oauth-button spaced-button" onClick={fetchPlaylistIds}>Get Playlist IDs
+                        </button>
                         <select
                             className="oauth-dropdown"
                             value={selectedPlaylist}
@@ -89,7 +112,8 @@ const OAuthIntegration = () => {
                                 <option key={id} value={id}>{id}</option>
                             ))}
                         </select>
-                        <button className="oauth-button spaced-button" onClick={savePlaylistSongs}>Save Playlist Songs</button>
+                        <button className="oauth-button spaced-button" onClick={savePlaylistSongs}>Save Playlist Songs
+                        </button>
                     </div>
                 </div>
             </div>
@@ -102,7 +126,7 @@ const OAuthIntegration = () => {
                 value={jsonOutput}
                 className="oauth-output"
             />
-            <ToastContainer />
+            <ToastContainer/>
         </div>
     );
 };

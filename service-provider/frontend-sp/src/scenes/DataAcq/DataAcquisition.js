@@ -213,25 +213,25 @@ const UsersList = () => {
                 )}
             </div>
 
-            {showComputationControls && (
-                <div className={styles.section}>
-                    <h2 className={styles.heading}>Computation Controls</h2>
-                    <div className={styles.buttonGroup}>
-                        <button className={styles.button} onClick={handleTrainingButtonClick}>Compute</button>
-                        <button className={styles.button} onClick={handleRefreshStatusButtonClick}>Refresh Status</button>
-                    </div>
+            {/*{showComputationControls && (*/}
+            {/*    <div className={styles.section}>*/}
+            {/*        <h2 className={styles.heading}>Computation Controls</h2>*/}
+            {/*        <div className={styles.buttonGroup}>*/}
+            {/*            <button className={styles.button} onClick={handleTrainingButtonClick}>Compute</button>*/}
+            {/*            <button className={styles.button} onClick={handleRefreshStatusButtonClick}>Refresh Status</button>*/}
+            {/*        </div>*/}
 
-                    <h3 className={styles.subHeading}>Computation Logs:</h3>
-                    <textarea
-                        className={styles.textarea}
-                        rows="10"
-                        cols="50"
-                        value={log}
-                        readOnly
-                        placeholder="Computation logs will appear here..."
-                    />
-                </div>
-            )}
+            {/*        <h3 className={styles.subHeading}>Computation Logs:</h3>*/}
+            {/*        <textarea*/}
+            {/*            className={styles.textarea}*/}
+            {/*            rows="10"*/}
+            {/*            cols="50"*/}
+            {/*            value={log}*/}
+            {/*            readOnly*/}
+            {/*            placeholder="Computation logs will appear here..."*/}
+            {/*        />*/}
+            {/*    </div>*/}
+            {/*)}*/}
 
             <ToastContainer />
         </div>

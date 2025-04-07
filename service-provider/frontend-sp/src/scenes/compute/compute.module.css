@@ -1,0 +1,104 @@
+/* UsersList.module.css */
+
+/* General container styles */
+.container {
+    font-family: Arial, sans-serif;
+    margin: 0 auto;
+    padding: 20px;
+    max-width: 600px;
+    background-color: #f4f7fb;
+    border-radius: 8px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* Button styling */
+.button {
+    background-color: #007bff;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s ease;
+    margin-top: 10px;
+}
+
+.button:hover {
+    background-color: #0056b3;
+}
+
+.button:disabled {
+    background-color: #d6d8db;
+    cursor: not-allowed;
+}
+
+/* Styling for the select dropdown */
+.select {
+    width: 100%;
+    padding: 10px;
+    margin: 10px 0;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    font-size: 16px;
+}
+
+/* Styling for the checkboxes section */
+.heading {
+    margin-bottom: 15px;
+    color: #333;
+    font-size: 18px;
+}
+
+.label {
+    display: block;
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.checkbox {
+    margin-right: 10px;
+}
+
+/* Styling for the fetched data display */
+.textarea {
+    width: 100%;
+    height: 200px;
+    padding: 10px;
+    font-family: monospace;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+    margin-top: 10px;
+    resize: vertical;
+}
+
+/* Styling for the ToastContainer */
+.Toastify__toast-container {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    z-index: 9999;
+}
+
+.loadingContainer {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.loadingSpinner {
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top: 4px solid #3498db;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin-bottom: 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
