@@ -1,5 +1,6 @@
 package nsf.controller;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
 import io.vertx.core.AbstractVerticle;
 import io.vertx.ext.mongo.FindOptions;
 import io.vertx.ext.web.Router;
@@ -273,6 +274,9 @@ public class ControllerVerticle extends AbstractVerticle {
       router.get("/oauth/saveUserDataSettings").handler(this::updateUserControlSettings);
       router.get("/oauth/fetchCollections").handler(this::getCollections);
       router.get("/oauth/getDAData").handler(this::getDAData);
+      router.get("/oauth/strava/getActivities").handler(this::getUserActivities);
+      router.get("/oauth/strava/athlete").handler(this::getAthlete);
+      router.get("/oauth/strava/athleteClubs").handler(this::getAthleteClubs);
 
 
     userSettings = new JsonObject().put("0",true).put("1",true).put("2",true);
@@ -327,6 +331,128 @@ public class ControllerVerticle extends AbstractVerticle {
                         ctx.response().setStatusCode(302).putHeader("Location", "http://localhost:3001/oauth").end();
                     } else {
                         ctx.response().setStatusCode(400).end("OAuth failed");
+                    }
+                });
+    }
+
+    private void getAthleteClubs(RoutingContext ctx) {
+        if (stravaAccessToken == null) {
+            ctx.response()
+                    .setStatusCode(401)
+                    .putHeader("Content-Type", "application/json")
+                    .end(new JsonObject().put("error", "Access token is null").encode());
+            return;
+        }
+
+        webClient.getAbs("https://www.strava.com/api/v3/athlete/clubs")
+                .putHeader("Authorization", "Bearer " + stravaAccessToken)
+                .expect(ResponsePredicate.SC_OK)
+                .send(ar -> {
+                    if(ar.succeeded()) {
+                        try {
+                            String responseBody = ar.result().bodyAsString();
+                            ObjectMapper mapper = new ObjectMapper();
+                            List<Map<String,Object>> result = mapper.readValue(responseBody, new TypeReference<>() {});
+                            List<Map<String,Object>> filteredData = result.stream()
+                                    .map(club -> {
+                                        Map<String,Object> filtered = new HashMap<>();
+                                        filtered.put("id", club.get("id"));
+                                        filtered.put("name", club.get("name"));
+                                        filtered.put("activity_types", club.get("activity_types"));
+                                        filtered.put("sport_type", club.get("sport_type"));
+                                        filtered.put("city", club.get("city"));
+                                        filtered.put("state", club.get("state"));
+                                        filtered.put("country", club.get("country"));
+                                        filtered.put("private", club.get("private"));
+                                        filtered.put("verified", club.get("verified"));
+                                        filtered.put("url", club.get("url"));
+                                        return filtered;
+                                    })
+                                    .collect(Collectors.toList());
+
+                            ctx.response().putHeader("Content-Type", "application/json")
+                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(filteredData));
+
+                        } catch (Exception e) {
+                            System.out.println(e);
+                            ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process Strava data\"}");
+                        }
+                    }else{
+                        ctx.response().setStatusCode(500).end("{\"error\": \"Failed to fetch data\"}");
+                    }
+                });
+    }
+
+    private void getAthlete(RoutingContext ctx) {
+        if (stravaAccessToken == null) {
+            ctx.response()
+                    .setStatusCode(401)
+                    .putHeader("Content-Type", "application/json")
+                    .end(new JsonObject().put("error", "Access token is null").encode());
+            return;
+        }
+
+        webClient.getAbs("https://www.strava.com/api/v3/athlete")
+                .putHeader("Authorization", "Bearer " + stravaAccessToken)
+                .expect(ResponsePredicate.SC_OK)
+                .send(ar -> {
+                    if(ar.succeeded()) {
+                        try {
+                            String responseBody = ar.result().bodyAsString();
+                            Map<String,Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
+                            ctx.response().putHeader("Content-Type", "application/json")
+                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(result));
+
+                        } catch (Exception e) {
+                            System.out.println(e);
+                            ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process Strava data\"}");
+                        }
+                    }else{
+                        ctx.response().setStatusCode(500).end("{\"error\": \"Failed to fetch data\"}");
+                    }
+                });
+    }
+
+    private void getUserActivities(RoutingContext ctx) {
+        if (stravaAccessToken == null) {
+            ctx.response()
+                    .setStatusCode(401)
+                    .putHeader("Content-Type", "application/json")
+                    .end(new JsonObject().put("error", "Access token is null").encode());
+            return;
+        }
+
+        webClient.getAbs("https://www.strava.com/api/v3/athlete/activities")
+                .putHeader("Authorization", "Bearer " + stravaAccessToken)
+                .expect(ResponsePredicate.SC_OK)
+                .send(ar -> {
+                    if (ar.succeeded()) {
+                        try {
+                            String responseBody = ar.result().bodyAsString();
+                            JsonArray activities = new JsonArray(responseBody);
+
+                            JsonObject result = new JsonObject();
+                            if (activities.isEmpty()) {
+                                result.put("status", "Success")
+                                        .put("data", "No Data to Show");
+                            } else {
+                                result.put("data", activities);
+                            }
+
+                            ctx.response()
+                                    .putHeader("Content-Type", "application/json")
+                                    .end(result.encode());
+
+                        } catch (Exception e) {
+                            logger.error("Error processing Strava data: ", e);
+                            ctx.response()
+                                    .setStatusCode(500)
+                                    .end(new JsonObject().put("error", "Failed to process Strava data").encode());
+                        }
+                    } else {
+                        ctx.response()
+                                .setStatusCode(500)
+                                .end(new JsonObject().put("error", "Failed to fetch Strava data").encode());
                     }
                 });
     }

@@ -74,13 +74,27 @@ const OAuthIntegration = () => {
                     </div>
                 </div>
 
-                {/* Strava OAuth Section
-                <div className="oauth-section">
-                    <h2 className="oauth-title">Strava OAuth Integration</h2>
-                    <a href="http://localhost:9080/oauth/strava/login">
-                        <button className="oauth-button login-button">Login with Strava</button>
-                    </a>
-                </div>*/}
+                { //Strava OAuth Section
+                    <div className="oauth-section">
+                        <h2 className="oauth-title">Strava OAuth Integration</h2>
+                        <a href="http://localhost:9080/oauth/strava/login">
+                            <button className="oauth-button login-button">Login with Strava</button>
+                        </a>
+                        <div className="oauth-button-group">
+                            <button className="oauth-button spaced-button"
+                                    onClick={() => fetchData('http://localhost:9080/oauth/strava/getActivities')}>Get
+                                Activities
+                            </button>
+                            <button className="oauth-button spaced-button"
+                                    onClick={() => fetchData('http://localhost:9080/oauth/strava/athlete')}>Get
+                                Athlete
+                            </button>
+                            <button className="oauth-button spaced-button"
+                                    onClick={() => fetchData('http://localhost:9080/oauth/strava/athleteClubs')}>Get
+                                Athlete Clubs
+                            </button>
+                        </div>
+                    </div>}
 
                 {/* Spotify OAuth Section */}
                 <div className="oauth-section">
