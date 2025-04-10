@@ -1098,6 +1098,7 @@ public class ControllerVerticle extends AbstractVerticle {
         this.spotifyAccessToken=null;
         this.accessToken=null;
         this.resultDA=null;
+        this.stravaAccessToken=null;
         ctx.response().setStatusCode(200).end("Success");
     }
 
