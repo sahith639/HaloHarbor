@@ -9,9 +9,17 @@ const ParticipationDetailModal = ({ isOpen, onClose, detailData, onListingUpdate
   console.log("detail modal", detailData);
 
   const deleteItem = async () => {
-    var response = await axios.delete(`${config.BACKEND_BASE_URL}/participants/${detailData._id}`);
-    onListingUpdate();
-    onClose();
+    // var response = await axios.delete(`${config.BACKEND_BASE_URL}/participants/${detailData._id}`);
+    // onListingUpdate();
+    // onClose();
+    try {
+      var response = await axios.delete(`${config.BACKEND_BASE_URL}/participants/${detailData._id}`);
+      onListingUpdate();
+      onClose();
+  } catch (error) {
+      console.error("Error deleting participant:", error);
+      // add a notification or alert here to inform the user
+  }
   }
 
   const containerStyle = {

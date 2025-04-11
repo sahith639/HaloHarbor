@@ -78,12 +78,6 @@ const ServProvDetailModal = ({ isOpen, onClose, summaryData, onServProvsUpdate }
     }
   }
 
-  const deleteServProv = async () => {
-    var response = await axios.delete(`${config.USER_CONTROLLER_BASE_URL}/service-providers/${summaryData._id}`);
-    onServProvsUpdate();
-    onClose();
-  }
-
   const hasRan = useRef(false);
   useEffect(() => {
     if (isOpen && !hasRan.current){
@@ -156,9 +150,6 @@ const ServProvDetailModal = ({ isOpen, onClose, summaryData, onServProvsUpdate }
         </Button>
 
         <Box sx={{ display: 'flex', alignItems: 'center', paddingTop:"5px" }}>
-          <Button variant="contained" onClick={deleteServProv}>
-            Delete
-          </Button>
           <Button variant="contained" onClick={onClose} color="secondary">
             Close
           </Button>
