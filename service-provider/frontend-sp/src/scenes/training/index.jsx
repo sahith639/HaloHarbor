@@ -19,6 +19,7 @@ const TrainingPage = () => {
 
       fetch(url, {
         method: 'GET',
+        mode:'no-cors',
         headers: {
           'Content-Type': 'application/json'
         }

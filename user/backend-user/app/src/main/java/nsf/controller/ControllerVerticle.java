@@ -275,7 +275,7 @@ public class ControllerVerticle extends AbstractVerticle {
       router.get("/oauth/getDAData").handler(this::getDAData);
 
 
-    userSettings = new JsonObject().put("0",true).put("1",true).put("2",true);
+    userSettings = new JsonObject().put("129b5297-e2af-4f87-a566-8c05422bb769",true).put("4d8c4a06-93cc-4d4c-a853-0d6463a29d77",true);
     int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9080"));
     vertx.createHttpServer()
         .requestHandler(router)
@@ -1603,19 +1603,19 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
     // catch(Exception e){
     // ctx.response().setStatusCode(500).end();
     // }
-    logger.info("handler");
+    logger.info("recieved meeage");
 
     JsonObject jsonObject;
+    String client_id;
     try {
       jsonObject = ctx.getBodyAsJson();
-      String jsonString = jsonObject.encodePrettily(); // Or use .encode() for compact format
-      // Attempt to parse JSON
-      logger.info(Integer.toString(jsonString.length()));
+      client_id = jsonObject.getString("client_id");
+      logger.info(client_id);
     } catch (DecodeException e) {
       logger.error("Invalid JSON format");
       return;
     }
-    logger.info("handler1");
+    logger.info("forwarding to SP");
     var query = new JsonObject();
     mongoClient.find("service_providers", query)
         .onSuccess(servProvData -> {
@@ -1629,7 +1629,7 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
             for (int i = 0; i < n; i++) {
               final String divided_str = divided[i];
               sendBasicMessage(connId, "TRAIN_RESPONSE",
-                  new JsonObject().put("id", i).put("total", pieces).put("value", divided_str), null);
+                  new JsonObject().put("id", i).put("total", pieces).put("value", divided_str).put("client_id", client_id), null);
             }
           });
           thread.start();
@@ -2127,7 +2127,8 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
             && segments.keySet().stream().sorted().reduce((a, b) -> a + 1 == b ? b : -1).orElse(-1) + 1 == total) {
 
           logger.info("Client: " + client_id + userSettings.encode());
-
+          logger.info(Boolean.toString(String.valueOf(userSettings.getBoolean(client_id)).equals("true")));
+          logger.info(userSettings.toString());
           if (String.valueOf(userSettings.getBoolean(client_id)).equals("true")) {
 
             StringBuilder fullContent = new StringBuilder();
@@ -2137,7 +2138,7 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
 
             // Log that we are sending the complete payload
             logger.info("Sending full payload");
-            JsonObject completeData = new JsonObject().put("completeData", fullContent.toString());
+            JsonObject completeData = new JsonObject().put("completeData", fullContent.toString()).put("client_id", client_id);
 
             WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
             webClient.post(4600, "flclient", "/train")
