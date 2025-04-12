@@ -123,7 +123,7 @@ public class ControllerVerticle extends AbstractVerticle {
         router.get("/collected-data").handler(this::getCollectedData);
 
         router.post("/train").handler(this::trainHandler);
-        router.get("/compute").handler(this::computeHandlerNew);
+        router.post("/compute").handler(this::computeHandlerNew);
         router.get("/get-logs").handler(this::computeLogHandler);
         router.get("/getParticipantList").handler(this::participantListHandler);
 
@@ -140,6 +140,21 @@ public class ControllerVerticle extends AbstractVerticle {
         router.get("/oauth/getDADataList").handler(this::getDADataList);
         router.get("/oauth/fetchUserList").handler(this::fetchUserControls);
         router.post("/oauth/fetchUserControlData").handler(this::GetUserControlData);
+
+        // router.delete("/participants/:participantId").handler(this::authenticateJwt).handler(this::deleteParticipant);
+        router.delete("/participants/:participantId").handler(this::deleteParticipant);
+
+        // router.options("/participants/:participantId").handler(ctx -> {
+        //     ctx.response()
+        //         .putHeader("Access-Control-Allow-Origin", "*")
+        //         .putHeader("Access-Control-Allow-Methods", "DELETE, OPTIONS")
+        //         .putHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, userId")
+        //         .putHeader("Access-Control-Allow-Credentials", "true")
+        //         .setStatusCode(200)
+        //         .end();
+        // });
+        
+
 
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9081"));
         HttpServerOptions options = new HttpServerOptions().setMaxFormAttributeSize(-1);
@@ -185,6 +200,21 @@ public class ControllerVerticle extends AbstractVerticle {
             ctx.response().setStatusCode(200).end("GetUserControlData triggered successfully.");
         } else {
             ctx.response().setStatusCode(400).end("userId is required.");
+        }
+    }
+
+    private void corsHandler(RoutingContext ctx) {
+        ctx.response()
+            .putHeader("Access-Control-Allow-Origin", "*")
+            .putHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, DELETE, PATCH, PUT")
+            .putHeader("Access-Control-Allow-Headers", 
+                "Content-Type, Authorization, userId, X-Custom-Header, Another-Header")
+            .putHeader("Access-Control-Allow-Credentials", "true");
+    
+        if (ctx.request().method() == HttpMethod.OPTIONS) {
+            ctx.response().setStatusCode(200).end();
+        } else {
+            ctx.next();
         }
     }
 
@@ -321,6 +351,37 @@ public class ControllerVerticle extends AbstractVerticle {
                 ctx.response().setStatusCode(500).end("{\"error\": \"Failed to fetch participants\"}");
             }
         });
+    }
+
+    private void deleteParticipant(RoutingContext ctx) {
+        String participantId = ctx.pathParam("participantId");
+        logger.info("Received request to delete participant: {}", participantId);
+        
+        JsonObject query = new JsonObject().put("_id", participantId);
+        
+        mongoClient.removeDocument(PARTICIPANTS_COLLECTION, query)
+            .onSuccess(result -> {
+                if (result.getRemovedCount() > 0) {
+                    logger.info("Successfully deleted participant: {}", participantId);
+                    ctx.response()
+                        .putHeader("Access-Control-Allow-Origin", "*")
+                        .setStatusCode(200)
+                        .end(new JsonObject().put("success", true).encode());
+                } else {
+                    logger.warn("Participant not found: {}", participantId);
+                    ctx.response()
+                        .putHeader("Access-Control-Allow-Origin", "*")
+                        .setStatusCode(404)
+                        .end(new JsonObject().put("error", "Participant not found").encode());
+                }
+            })
+            .onFailure(err -> {
+                logger.error("Failed to delete participant: {}", err.getMessage());
+                ctx.response()
+                    .putHeader("Access-Control-Allow-Origin", "*")
+                    .setStatusCode(500)
+                    .end(new JsonObject().put("error", "Failed to delete participant: " + err.getMessage()).encode());
+            });
     }
 
     private void getCollectedData(RoutingContext ctx){
@@ -920,27 +981,59 @@ public class ControllerVerticle extends AbstractVerticle {
             });
     }
 
-    private void deleteInvitation(RoutingContext ctx){
-        String invitationConnectionId = ctx.pathParam("invitationId");
+    // private void deleteInvitation(RoutingContext ctx){
+    //     String invitationConnectionId = ctx.pathParam("invitationId");
 
-        JsonObject query = new JsonObject()
-                .put("_id", invitationConnectionId);
-        logger.info("deleting invitation id: "+invitationConnectionId);
-        loginMongoClient.removeDocument("centralized_invitations",query);
-        mongoClient.removeDocument(INVITATIONS_COLLECTION, query)
-                .onSuccess(invitations -> {
-                    try {
-                        ariesClient.connectionsRemove(invitationConnectionId);
-                        ctx.response().setStatusCode(200).end();
-                    } catch (IOException e) {
-                        ctx.response().setStatusCode(500).end();
+    //     JsonObject query = new JsonObject()
+    //             .put("_id", invitationConnectionId);
+    //     logger.info("deleting invitation id: "+invitationConnectionId);
+    //     loginMongoClient.removeDocument("centralized_invitations",query);
+    //     mongoClient.removeDocument(INVITATIONS_COLLECTION, query)
+    //             .onSuccess(invitations -> {
+    //                 try {
+    //                     ariesClient.connectionsRemove(invitationConnectionId);
+    //                     ctx.response().setStatusCode(200).end();
+    //                 } catch (IOException e) {
+    //                     ctx.response().setStatusCode(500).end();
+    //                 }
+    //             })
+    //             .onFailure(e -> {
+    //                 ctx.response().setStatusCode(500).end();
+    //             });
+    // }
+
+
+    private void deleteInvitation(RoutingContext ctx) {
+        String invitationId = ctx.pathParam("invitationId");
+        JsonObject query = new JsonObject().put("_id", invitationId);
+        
+        Promise<Void> promise = Promise.promise();
+        
+        loginMongoClient.removeDocument("centralized_invitations", query, ar -> {
+            if (ar.succeeded()) {
+                // Continue with INVITATIONS_COLLECTION removal
+                mongoClient.removeDocument(INVITATIONS_COLLECTION, query, ar2 -> {
+                    if (ar2.succeeded()) {
+                        // Try to remove from PARTICIPANTS_COLLECTION
+                        mongoClient.removeDocument(PARTICIPANTS_COLLECTION, query, ar3 -> {
+                            // Regardless of participant removal result, proceed
+                            try {
+                                ariesClient.connectionsRemove(invitationId);
+                                ctx.response().setStatusCode(200).end();
+                            } catch (IOException e) {
+                                logger.error("Connection removal failed: " + e.getMessage());
+                                ctx.response().setStatusCode(500).end(e.getMessage());
+                            }
+                        });
+                    } else {
+                        ctx.response().setStatusCode(500).end(ar2.cause().getMessage());
                     }
-                })
-                .onFailure(e -> {
-                    ctx.response().setStatusCode(500).end();
                 });
+            } else {
+                ctx.response().setStatusCode(500).end(ar.cause().getMessage());
+            }
+        });
     }
-
     private void createInvitation(RoutingContext ctx){
         try{
             String name = ctx.body().asJsonObject().getString("name");
@@ -1031,8 +1124,12 @@ public class ControllerVerticle extends AbstractVerticle {
 
     private void computeHandlerNew(RoutingContext ctx) {
         logger.info("Handler started: Fetching data from UserAccessControls");
+        JsonObject requestBody = ctx.getBodyAsJson();
+        String userIdNew = requestBody.getString("userId");
 
-        mongoClient.find("UserAccessControls", new JsonObject()) // Fetch all documents from UserAccessControls
+        JsonObject query = new JsonObject().put("userId", userIdNew);
+
+        mongoClient.find("UserAccessControls",query)
                 .onSuccess(results -> {
                     if (results.isEmpty()) {
                         ctx.response().setStatusCode(500).end();
