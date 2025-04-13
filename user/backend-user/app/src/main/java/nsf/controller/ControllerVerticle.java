@@ -271,7 +271,7 @@ public class ControllerVerticle extends AbstractVerticle {
       router.get("/oauth/spotify/getPlayListIDS").handler(this::getPlayListsIds);
       router.get("/oauth/logout").handler(this::logout);
 
-      router.get("/oauth/saveUserDataSettings").handler(this::updateUserControlSettings);
+      router.post("/oauth/saveUserDataSettings").handler(this::updateUserControlSettings);
       router.get("/oauth/fetchCollections").handler(this::getCollections);
       router.get("/oauth/getDAData").handler(this::getDAData);
       router.get("/oauth/strava/getActivities").handler(this::getUserActivities);
