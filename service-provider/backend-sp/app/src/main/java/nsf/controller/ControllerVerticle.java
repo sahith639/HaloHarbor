@@ -125,6 +125,7 @@ public class ControllerVerticle extends AbstractVerticle {
         router.post("/train").handler(this::trainHandler);
         router.post("/compute").handler(this::computeHandlerNew);
         router.get("/get-logs").handler(this::computeLogHandler);
+        router.get("/getParticipantList").handler(this::participantListHandler);
 
         router.post("/webhook/topic/basicmessages").handler(this::BasicMessageHandler);
         router.post("/webhook/topic/connections").handler(this::connectionsUpdateHandler);
@@ -1280,6 +1281,23 @@ public class ControllerVerticle extends AbstractVerticle {
         }
 
     
+    private void participantListHandler(RoutingContext ctx) {
+        var query = new JsonObject();
+        logger.info("sadsadasdasda");
+        mongoClient.find(PARTICIPANTS_COLLECTION, query)
+                .onSuccess(participantResults -> {
+                    int counter = 0;
+                    JsonObject ids = new JsonObject();
+                    for(var participant : participantResults){
+                        ids.put(Integer.toString(counter),participant.getString("connId"));
+                        counter = counter + 1;
+                    }
+                    ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json")
+                    .end(ids.encode());
+            });
+                    
+    }
+
     private void trainHandler(RoutingContext ctx) {
     //     try{
     //        Optional<List<ConnectionRecord>> invitationsOptional = ariesClient.connections(ConnectionFilter.builder().state(ConnectionState.INVITATION).build());
@@ -1293,47 +1311,34 @@ public class ControllerVerticle extends AbstractVerticle {
     //    catch(Exception e){
     //        ctx.response().setStatusCode(500).end();
     //    }
-     logger.info("handler");
+     logger.info("training");
     
         JsonObject jsonObject;
+        String client_id;
             try {
                 jsonObject = ctx.getBodyAsJson();
-                String jsonString = jsonObject.encodePrettily();  // Or use .encode() for compact format
-                  // Attempt to parse JSON
-                logger.info(Integer.toString(jsonString.length()));
+                client_id = jsonObject.getString("client_id");
             } catch (DecodeException e) {
                 logger.error("Invalid JSON format");
                 return;
             }
-     logger.info("handler1");
-            var query = new JsonObject();
-            mongoClient.find(PARTICIPANTS_COLLECTION, query)
-                    .onSuccess(participantResults -> {
-                        if (participantResults.size() > 0){
-                            for(var participant : participantResults){
-                                final var connId = participant.getString("connId");
-                                final String[] divided = divideString(jsonObject.encode());
-                                logger.info(Integer.toString(divided[0].length()));
-                                int length = jsonObject.encodePrettily().length();
-                                final int pieces = length/350000; // Number of pieces to divide the string into
-                                final int n = divided.length;
-                                JsonObject data = (JsonObject) jsonObject.getJsonObject("data");
+            logger.info("forwarding to " + client_id);
+            final String[] divided = divideString(jsonObject);
+            logger.info(Integer.toString(divided[0].length()));
+            int length = jsonObject.encodePrettily().length();
+            final int pieces = length/350000; // Number of pieces to divide the string into
+            final int n = divided.length;
+            JsonObject data = (JsonObject) jsonObject.getJsonObject("data");
 
-                                Thread thread = new Thread(() -> {
-                                    for (int i = 0; i < n; i++) {
-                                        final String divided_str = divided[i];   
-                                        logger.info("CLient" + data.getString("client_id") + "Piece :" + Integer.toString(i));
-                                        sendBasicMessage(connId, "TRAIN", new JsonObject().put("client_id",connId).put("id",i).put("total",pieces).put("value",divided_str), null);
-                                
-                                    }
-                                });
-                                    thread.start();
-                            }
-                        }
-                        else{
-                            logger.warn("User entry doesn't exist (e.g., the user might not have verified) - rejecting shared data.");
-                        }
-                    });
+            Thread thread = new Thread(() -> {
+                for (int i = 0; i < n; i++) {
+                    final String divided_str = divided[i];   
+                    logger.info("Sending CLient" + client_id + "Piece :" + Integer.toString(i));
+                    sendBasicMessage(client_id, "TRAIN", new JsonObject().put("client_id",client_id).put("id",i).put("total",pieces).put("value",divided_str), null);
+                }
+            });
+                thread.start();
+            
         ctx.response().setStatusCode(200).end();
         return;
     }
@@ -1361,7 +1366,8 @@ public class ControllerVerticle extends AbstractVerticle {
                 return promise.future();
             });
     }
-    public  String[] divideString(String input) {
+    public  String[] divideString(JsonObject inputObject) {
+        String input = inputObject.encode();
         // Check if input string is null or empty
         if (input == null || input.isEmpty()) {
             return new String[0];
@@ -1492,7 +1498,8 @@ public class ControllerVerticle extends AbstractVerticle {
                 {
                     JsonObject payloadResponseData = (JsonObject)basicMessagePackage.getJsonObject("payload");
                     int id = payloadResponseData.getInteger("id");
-                    logger.info("Received segment ID: " + id);
+                    String client_id = payloadResponseData.getString("client_id");
+                    logger.info("Client ID : "+client_id+"Received segment ID: " + id);
 
                     int total = payloadResponseData.getInteger("total");
                     String content = payloadResponseData.getString("value");
@@ -1512,7 +1519,8 @@ public class ControllerVerticle extends AbstractVerticle {
                         
                         // Log that we are sending the complete payload
                         logger.info("Sending full payload");
-                        JsonObject completeData = new JsonObject().put("completeData", fullContent.toString());
+                        logger.info(fullContent.toString());
+                        JsonObject completeData = new JsonObject().put("completeData", fullContent.toString()).put("client_id", client_id);
 
                         WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
                         webClient.post(4500, "flserver", "/response") 

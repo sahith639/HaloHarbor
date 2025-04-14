@@ -19,6 +19,8 @@ services:
       build:
         context: "./service-provider/FLserver"
       container_name: flserver
+      environment:
+        PYTHONUNBUFFERED: 1
       ports:
         - 4500:4500
       networks:

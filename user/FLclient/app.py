@@ -59,7 +59,7 @@ def trainClient(client_id,epochs):
   model = create_model()
   filepath = f"global_update.pkl"
   loaded_model = load_weights_from_pkl(model, filepath)
-  data=pd.read_csv(f"./iris_data_0.csv")
+  data=pd.read_csv(f"./iris_data_{0}.csv")
   X=data.iloc[:,1:5].values
   y=data.iloc[:,5].values
   X_normalized=normalize(X,axis=0)
@@ -83,8 +83,11 @@ def detect_artist_spacy(text):
     artists = [ent.text for ent in doc.ents if ent.label_ in ["PERSON", "ORG"]]
     return artists
 
-
+import logging
 app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
+logging.info("This is a log message from fl server")
+
 cors = CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
 
@@ -92,27 +95,26 @@ app.config['CORS_HEADERS'] = 'Content-Type'
 def run():
     
     payload = request.get_json()
+    client_id = payload["client_id"]
     payload = json.loads(payload["completeData"])
     print('sad', payload.keys())
 
     data = payload['data']
     string_data = payload['value']
-    fileModel = open('got.txt','w')
-    fileModel.write(string_data)
-    fileModel.close() 
+    
     with io.open('global_update.pkl', "wb") as file:
       # Write the string data as bytes to the file
       file.write(string_data.encode('latin1'))
 
     # Access the data part of the request
-    print(data['client_id'])
-    trainClient(data['client_id'],int(data['epochs']))
-    print("Sending Response", data['client_id'])
+    print(data)
+    trainClient(client_id,int(data['epochs']))
+    print("Sending Response", client_id)
 
     url = 'http://host.docker.internal:9080/train-response'
-    with open(f"./client_{data['client_id']}_update.pkl", 'rb') as file:
+    with open(f"./client_{client_id}_update.pkl", 'rb') as file:
             loaded_data = pickle.load(file)  # Prepare the file to be sent in the POST request
-            response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':data['client_id'],'epochs':data['epochs']}})  # Send the POST request
+            response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'epochs':data['epochs']},"client_id":client_id})  # Send the POST request
             if response.status_code == 200:
                 print("File successfully sent to API.")
             else:

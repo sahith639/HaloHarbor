@@ -271,7 +271,7 @@ public class ControllerVerticle extends AbstractVerticle {
       router.get("/oauth/spotify/getPlayListIDS").handler(this::getPlayListsIds);
       router.get("/oauth/logout").handler(this::logout);
 
-      router.get("/oauth/saveUserDataSettings").handler(this::updateUserControlSettings);
+      router.post("/oauth/saveUserDataSettings").handler(this::updateUserControlSettings);
       router.get("/oauth/fetchCollections").handler(this::getCollections);
       router.get("/oauth/getDAData").handler(this::getDAData);
       router.get("/oauth/strava/getActivities").handler(this::getUserActivities);
@@ -279,7 +279,7 @@ public class ControllerVerticle extends AbstractVerticle {
       router.get("/oauth/strava/athleteClubs").handler(this::getAthleteClubs);
 
 
-    userSettings = new JsonObject().put("0",true).put("1",true).put("2",true);
+    userSettings = new JsonObject().put("129b5297-e2af-4f87-a566-8c05422bb769",true).put("4d8c4a06-93cc-4d4c-a853-0d6463a29d77",true);
     int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9080"));
     vertx.createHttpServer()
         .requestHandler(router)
@@ -382,20 +382,77 @@ public class ControllerVerticle extends AbstractVerticle {
                                         filtered.put("verified", club.get("verified"));
                                         filtered.put("url", club.get("url"));
                                         return filtered;
-                                    })
-                                    .collect(Collectors.toList());
+                                    }).collect(Collectors.toList());
 
-                            ctx.response().putHeader("Content-Type", "application/json")
-                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(filteredData));
+                            AtomicInteger processedCount = new AtomicInteger(0);
+                            AtomicBoolean hasError = new AtomicBoolean(false);
+
+                            for (Map<String,Object> clubData : filteredData) {
+                                JsonObject query = new JsonObject()
+                                        .put("id", clubData.get("id"));
+
+                                userDataMongoClient.findOne("athlete_clubs", query, null, res -> {
+                                    if (res.succeeded()) {
+                                        if (res.result() == null) {
+                                            // Data doesn't exist, insert new club
+                                            JsonObject document = new JsonObject(clubData);
+                                            userDataMongoClient.insert("athlete_clubs", document, insertRes -> {
+                                                if (insertRes.succeeded()) {
+                                                    if (processedCount.incrementAndGet() == filteredData.size()) {
+                                                        addDocumentToUserDataControl("athlete_clubs");
+                                                        sendResponse(ctx, hasError.get());
+                                                    }
+                                                } else {
+                                                    hasError.set(true);
+                                                    if (processedCount.incrementAndGet() == filteredData.size()) {
+                                                        sendResponse(ctx, true);
+                                                    }
+                                                }
+                                            });
+                                        } else {
+                                            sendResponse(ctx, hasError.get());
+                                        }
+                                    } else {
+                                        hasError.set(true);
+                                        if (processedCount.incrementAndGet() == filteredData.size()) {
+                                            sendResponse(ctx, true);
+                                        }
+                                    }
+                                });
+                            }
+//                            sendResponse(ctx, true);
+//                            ctx.response().putHeader("Content-Type", "application/json")
+//                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(filteredData));
 
                         } catch (Exception e) {
-                            System.out.println(e);
-                            ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process Strava data\"}");
+                            logger.error("Error processing Strava clubs data: ", e);
+                            ctx.response()
+                                    .setStatusCode(500)
+                                    .end(new JsonObject().put("error", "Failed to process Strava clubs data").encode());
                         }
                     }else{
-                        ctx.response().setStatusCode(500).end("{\"error\": \"Failed to fetch data\"}");
+                        ctx.response()
+                                .setStatusCode(500)
+                                .end(new JsonObject().put("error", "Failed to fetch Strava clubs").encode());
                     }
                 });
+    }
+
+    private void sendResponse(RoutingContext ctx, boolean hasError) {
+        if (!hasError) {
+            ctx.response()
+                    .putHeader("Content-Type", "application/json")
+                    .end(new JsonObject()
+                            .put("status", "Success")
+                            .put("message", "Data processed successfully")
+                            .encode());
+        } else {
+            ctx.response()
+                    .setStatusCode(500)
+                    .end(new JsonObject()
+                            .put("error", "Error processing some club data")
+                            .encode());
+        }
     }
 
     private void getAthlete(RoutingContext ctx) {
@@ -414,16 +471,45 @@ public class ControllerVerticle extends AbstractVerticle {
                     if(ar.succeeded()) {
                         try {
                             String responseBody = ar.result().bodyAsString();
-                            Map<String,Object> result = new ObjectMapper().readValue(responseBody, HashMap.class);
-                            ctx.response().putHeader("Content-Type", "application/json")
-                                    .end(new ObjectMapper().writerWithDefaultPrettyPrinter().writeValueAsString(result));
+                            Map<String,Object> athleteData = new ObjectMapper().readValue(responseBody, HashMap.class);
+
+                            // Create query to check if athlete data exists
+                            JsonObject query = new JsonObject()
+                                    .put("id", athleteData.get("id"));
+
+                            // Check if data already exists
+                            userDataMongoClient.findOne("athlete", query, null, res -> {
+                                if (res.succeeded()) {
+                                    if (res.result() == null) {
+                                        // Data doesn't exist, store it
+                                        JsonObject document = new JsonObject(athleteData);
+                                        userDataMongoClient.insert("athlete", document, insertRes -> {
+                                            if (insertRes.succeeded()) {
+                                                addDocumentToUserDataControl("athlete");
+                                                ctx.response()
+                                                        .putHeader("Content-Type", "application/json")
+                                                        .end(new JsonObject().put("status", "Success")
+                                                                .put("message", "Athlete data stored successfully").encode());
+                                            } else {
+                                                ctx.response().setStatusCode(500).end(new JsonObject().put("error", "Failed to store athlete data").encode());
+                                            }
+                                        });
+                                    } else {
+                                        // Data already exists
+                                        ctx.response().putHeader("Content-Type", "application/json").end(new JsonObject().put("status", "Success")
+                                                        .put("message", "Athlete data already exists").encode());
+                                    }
+                                } else {
+                                    ctx.response().setStatusCode(500).end(new JsonObject().put("error", "Failed to check athlete data").encode());
+                                }
+                            });
 
                         } catch (Exception e) {
-                            System.out.println(e);
-                            ctx.response().setStatusCode(500).end("{\"error\": \"Failed to process Strava data\"}");
+                            logger.error("Error processing Strava data: ", e);
+                            ctx.response().setStatusCode(500).end(new JsonObject().put("error", "Failed to process Strava data").encode());
                         }
-                    }else{
-                        ctx.response().setStatusCode(500).end("{\"error\": \"Failed to fetch data\"}");
+                    } else {
+                        ctx.response().setStatusCode(500).end(new JsonObject().put("error", "Failed to fetch Strava data").encode());
                     }
                 });
     }
@@ -446,31 +532,93 @@ public class ControllerVerticle extends AbstractVerticle {
                             String responseBody = ar.result().bodyAsString();
                             JsonArray activities = new JsonArray(responseBody);
 
-                            JsonObject result = new JsonObject();
                             if (activities.isEmpty()) {
-                                result.put("status", "Success")
-                                        .put("data", "No Data to Show");
-                            } else {
-                                result.put("data", activities);
+                                ctx.response()
+                                        .putHeader("Content-Type", "application/json")
+                                        .end(new JsonObject()
+                                                .put("status", "Success")
+                                                .put("message", "No activities data to store")
+                                                .encode());
+                                return;
                             }
 
-                            ctx.response()
-                                    .putHeader("Content-Type", "application/json")
-                                    .end(result.encode());
+                            // Process each activity
+                            AtomicInteger processedCount = new AtomicInteger(0);
+                            AtomicBoolean hasError = new AtomicBoolean(false);
+
+                            for (int i = 0; i < activities.size(); i++) {
+                                JsonObject activity = activities.getJsonObject(i);
+
+                                // Check if activity exists
+                                JsonObject query = new JsonObject()
+                                        .put("id", activity.getValue("id"));
+
+                                userDataMongoClient.findOne("athlete_activities", query, null, res -> {
+                                    if (res.succeeded()) {
+                                        if (res.result() == null) {
+                                            // Activity doesn't exist, store it
+                                            userDataMongoClient.insert("athlete_activities", activity, insertRes -> {
+                                                if (insertRes.succeeded()) {
+                                                    if (processedCount.incrementAndGet() == activities.size()) {
+                                                        addDocumentToUserDataControl("athlete_activities");
+                                                        sendResponse(ctx, hasError.get());
+                                                    }
+                                                } else {
+                                                    hasError.set(true);
+                                                    if (processedCount.incrementAndGet() == activities.size()) {
+                                                        sendResponse(ctx, true);
+                                                    }
+                                                }
+                                            });
+                                        } else {
+                                            // Activity already exists
+                                            if (processedCount.incrementAndGet() == activities.size()) {
+                                                sendResponse(ctx, hasError.get());
+                                            }
+                                        }
+                                    } else {
+                                        hasError.set(true);
+                                        if (processedCount.incrementAndGet() == activities.size()) {
+                                            sendResponse(ctx, true);
+                                        }
+                                    }
+                                });
+                            }
 
                         } catch (Exception e) {
                             logger.error("Error processing Strava data: ", e);
                             ctx.response()
                                     .setStatusCode(500)
-                                    .end(new JsonObject().put("error", "Failed to process Strava data").encode());
+                                    .end(new JsonObject()
+                                            .put("error", "Failed to process Strava data")
+                                            .encode());
                         }
                     } else {
                         ctx.response()
                                 .setStatusCode(500)
-                                .end(new JsonObject().put("error", "Failed to fetch Strava data").encode());
+                                .end(new JsonObject()
+                                        .put("error", "Failed to fetch Strava data")
+                                        .encode());
                     }
                 });
     }
+
+//    private void sendResponse(RoutingContext ctx, boolean hasError) {
+//        if (!hasError) {
+//            ctx.response()
+//                    .putHeader("Content-Type", "application/json")
+//                    .end(new JsonObject()
+//                            .put("status", "Success")
+//                            .put("message", "Activities data processed successfully")
+//                            .encode());
+//        } else {
+//            ctx.response()
+//                    .setStatusCode(500)
+//                    .end(new JsonObject()
+//                            .put("error", "Error processing some activities data")
+//                            .encode());
+//        }
+//    }
 
     private void redirectToReddit(RoutingContext ctx) {
         String url = authUrl + "?client_id=" + clientId +
@@ -1745,19 +1893,19 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
     // catch(Exception e){
     // ctx.response().setStatusCode(500).end();
     // }
-    logger.info("handler");
+    logger.info("recieved meeage");
 
     JsonObject jsonObject;
+    String client_id;
     try {
       jsonObject = ctx.getBodyAsJson();
-      String jsonString = jsonObject.encodePrettily(); // Or use .encode() for compact format
-      // Attempt to parse JSON
-      logger.info(Integer.toString(jsonString.length()));
+      client_id = jsonObject.getString("client_id");
+      logger.info(client_id);
     } catch (DecodeException e) {
       logger.error("Invalid JSON format");
       return;
     }
-    logger.info("handler1");
+    logger.info("forwarding to SP");
     var query = new JsonObject();
     mongoClient.find("service_providers", query)
         .onSuccess(servProvData -> {
@@ -1771,7 +1919,7 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
             for (int i = 0; i < n; i++) {
               final String divided_str = divided[i];
               sendBasicMessage(connId, "TRAIN_RESPONSE",
-                  new JsonObject().put("id", i).put("total", pieces).put("value", divided_str), null);
+                  new JsonObject().put("id", i).put("total", pieces).put("value", divided_str).put("client_id", client_id), null);
             }
           });
           thread.start();
@@ -2269,7 +2417,8 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
             && segments.keySet().stream().sorted().reduce((a, b) -> a + 1 == b ? b : -1).orElse(-1) + 1 == total) {
 
           logger.info("Client: " + client_id + userSettings.encode());
-
+          logger.info(Boolean.toString(String.valueOf(userSettings.getBoolean(client_id)).equals("true")));
+          logger.info(userSettings.toString());
           if (String.valueOf(userSettings.getBoolean(client_id)).equals("true")) {
 
             StringBuilder fullContent = new StringBuilder();
@@ -2279,7 +2428,7 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
 
             // Log that we are sending the complete payload
             logger.info("Sending full payload");
-            JsonObject completeData = new JsonObject().put("completeData", fullContent.toString());
+            JsonObject completeData = new JsonObject().put("completeData", fullContent.toString()).put("client_id", client_id);
 
             WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
             webClient.post(4600, "flclient", "/train")

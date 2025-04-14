@@ -23,26 +23,14 @@ import io
 import json
 from flask_cors import CORS, cross_origin
 
-updated = [0, 0, 0]
-rejected = []
+clientsResponded = []
+clientUpdateId = []
+clientQueue = []
 logs = []
+num_participants = 0
 num_rounds = 1
 rounds_counter = 1
-
-
-def create_model():
-    model = Sequential()
-    model.add(Input(shape=(4,)))
-    model.add(Dense(1000, activation='relu'))
-    model.add(Dense(500, activation='relu'))
-    model.add(Dense(300, activation='relu'))
-    model.add(Dropout(0.2))
-    model.add(Dense(3, activation='softmax'))
-    model.compile(loss='categorical_crossentropy', optimizer=Adam(
-        learning_rate=0.01), metrics=['accuracy'])
-    model.summary()
-    return model
-
+global_model = None
 
 def save_global_updates(model, additional_info=None):
     client_updates = {"weights": model.get_weights()}
@@ -93,37 +81,64 @@ def get_size_in_mb(text):
     size_in_mb = round(string_size_bytes / (1024 * 1024), 2)
 
     return size_in_mb
+
+
+def federated_training():
+    global logs
+    if (len(clientQueue)!=0):
+        client_id = clientQueue[0]
+        with open('./global_update.pkl', 'rb') as file:
+            loaded_data = pickle.load(file)
+            url = 'http://host.docker.internal:9081/train'
+            headers = {'Content-Type': ': application/json'}
+            response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'epochs':3},'client_id':client_id}) 
+            print(response)
+            if response.status_code == 200:
+                print("Request Sent to client "+client_id)
+                logs.append("Request Sent to client"+client_id)
+                del clientQueue[0]
+            else:
+                print("Error occurred while sending file to API. Status code:", response.status_code)
+                return {'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'epochs':3}}
+
+
 # 3. Federated Learning Loop:
-
-
-def federated_training(global_model):
-  global logs
-  global rounds_counter
+# def federated_training(global_model, participants):
+#   global logs
+#   global rounds_counter
   
-  print(f"-- Round {rounds_counter} --")
-  logs.append(f"-- Round {rounds_counter } --")
-  while not all(i == 0 for i in updated):
-    time.sleep(2)
-  with open('./global_update.pkl', 'rb') as file:
-    loaded_data = pickle.load(file)
-    url = 'http://host.docker.internal:9081/train'
-    print(get_size_in_mb(str(pickle.dumps(loaded_data))))
+#   print(f"-- Round {rounds_counter} --")
+#   logs.append(f"-- Round {rounds_counter } --")
+  
+#   with open('./global_update.pkl', 'rb') as file:
+#     loaded_data = pickle.load(file)
+#     url = 'http://host.docker.internal:9081/train'
+#     headers = {'Content-Type': ': application/json'}
+#     response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'epochs':3}}) 
+#     fileModel = open('sent.txt','w')
+#     fileModel.write(str(pickle.dumps(loaded_data),'latin1'))
+#     fileModel.close() 
+#     print(response)
+#     if response.status_code == 200:
+#         print("File successfully sent to API.")
+#         logs.append("File successfully sent to API.")
+#     else:
+#         print("Error occurred while sending file to API. Status code:", response.status_code)
+#         return {'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'epochs':3}}
+  
+#   return "All Training Done"
+
+def getParticipants():
+    url = 'http://host.docker.internal:9081/getParticipantList'
     headers = {'Content-Type': ': application/json'}
-    response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':0,'epochs':3}}) 
-    fileModel = open('sent.txt','w')
-    fileModel.write(str(pickle.dumps(loaded_data),'latin1'))
-    fileModel.close() 
-    if response.status_code == 200:
-        print("File successfully sent to API.")
-        logs.append("File successfully sent to API.")
-    else:
-        print("Error occurred while sending file to API. Status code:", response.status_code)
-        return {'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':i,'epochs':3}}
-  
-  return "All Training Done"
+    response = requests.get(url)
+    print(response)
+    return response.json()
 
-
+import logging
 app = Flask(__name__)
+logging.basicConfig(level=logging.INFO)
+logging.info("This is a log message from fl server")
 cors = CORS(app)
 app.config['CORS_HEADERS'] = 'Content-Type'
 
@@ -131,13 +146,23 @@ app.config['CORS_HEADERS'] = 'Content-Type'
 @app.route("/")
 @cross_origin()
 def run():
-    global updated
-    global rejected
+    global clientsResponded
+    global clientUpdateId
+    global clientQueue
     global num_rounds
+    global rounds_counter
+    global logs
+    global num_participants
+    global global_model
     global_model = create_global_model()
-    additional_info = {"learning_rate": 0.01}
+    additional_info = {"learning_rate": 0.01, 'epochs':3}
     save_global_updates(global_model, additional_info)
-    final_model = federated_training(global_model)
+    participants = list(getParticipants().values())
+    clientQueue = participants
+    num_participants = len(participants)
+    print(f"-- Round {rounds_counter} --")
+    logs.append(f"-- Round {rounds_counter } --")
+    final_model = federated_training()
     return jsonify({"message": "OK"}), 200
 
 
@@ -151,82 +176,65 @@ def log():
 
 @app.route("/response", methods=['POST'])
 def resopnse():
-    global updated
-    global rejected
+    global clientsResponded
+    global clientUpdateId
     global num_rounds
+    global clientQueue
     global rounds_counter
     payload = request.get_json()
-    payload = json.loads(payload["completeData"])
     print('sad', payload.keys())
+    client_id = payload["client_id"]
+    payload = json.loads(payload["completeData"])
 
     data = payload['data']
     string_data = payload['value']
-    print(data["client_id"],'responded')
-    logs.append(f"{data['client_id']} responded")
+    print(client_id,'responded')
+    logs.append(f"{client_id} responded")
     
-    updated[int(data["client_id"])] = 1
+    clientsResponded.append(client_id)
 
     print('payload size', len(payload['value']))
     if payload['value'] == 'None':
-      rejected.append(int(data["client_id"]))
-      print(data["client_id"],'rejected training')
-      logs.append(f"{data['client_id']} rejected training")
+      print(client_id,'rejected training')
+      logs.append(f"{client_id} rejected training")
     
     else:
-
-      with io.open(f"client_{data['client_id']}_update.pkl", "wb") as file:
-        # Write the string data as bytes to the file
-        file.write(string_data.encode("latin1"))
+        clientUpdateId.append(client_id)
+        with io.open(f"client_{client_id}_update.pkl", "wb") as file:
+            # Write the string data as bytes to the file
+            file.write(string_data.encode("latin1"))
 
     # Access the data part of the request
-    print(data)  # Example: {'key1': 'value1', 'key2': 'value2'}
-    if all(i == 1 for i in updated):
-        client_update_files = [f"client_{client_id}_update.pkl" for client_id in range(
-            0, 3) if client_id not in rejected]
+    # Example: {'key1': 'value1', 'key2': 'value2'}
+    if len(clientQueue) == 0 and len(clientsResponded) == num_participants:
+        client_update_files = [f"client_{cID}_update.pkl" for cID in clientUpdateId]
         print('aggregating')
-        logs.append('Aggregating Modle')
+        logs.append('Aggregating Weights')
         aggregated_weights = aggregate_client_updates(client_update_files)
         print('Aggregation Done!')
         logs.append('Aggregation Done!')
-
-      # Update the global model
-        global_model = create_global_model()
-        global_model.set_weights(aggregated_weights)
-        additional_info = {"learning_rate": 0.01}
-        save_global_updates(global_model, additional_info)
-        rounds_counter = rounds_counter + 1
+        #Round 2 code here
         if rounds_counter <= num_rounds:
+            rounds_counter = rounds_counter + 1
+            print(f"-- Round {rounds_counter} --")
             logs.append(f"-- Round {rounds_counter } --")
-            with open('./global_update.pkl', 'rb') as file:
-                loaded_data = pickle.load(file)
-                url = 'http://host.docker.internal:9081/train'
-                print(get_size_in_mb(str(pickle.dumps(loaded_data))))
-                headers = {'Content-Type': ': application/json'}
-                response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':0,'epochs':3}}, timeout=10) 
-                if response.status_code == 200:
-                    print("File successfully sent to API.")
-                else:
-                    print("Error occurred while sending file to API. Status code:", response.status_code)
+            clientsResponded = []
+            clientUpdateId = []
+            clientQueue = list(getParticipants().values())
+            final_model = federated_training()
         else:
-            print('All Done!')
-            logs.append('All Done!')
-        updated = [0,0,0]
-        rejected = []
+            clientsResponded = []
+            clientUpdateId = []
+            clientQueue = list(getParticipants().values())
+            
+    #sending for next client
     else:
-      with open('./global_update.pkl', 'rb') as file:
-        loaded_data = pickle.load(file)
-        url = 'http://host.docker.internal:9081/train'
-        print(get_size_in_mb(str(pickle.dumps(loaded_data))))
-        headers = {'Content-Type': ': application/json'}
-        response = requests.post(url, json={'value':str(pickle.dumps(loaded_data),'latin1'),'data':{'client_id':int(data["client_id"])+1,'epochs':3}}) 
-        if response.status_code == 200:
-            print("File successfully sent to API.")
-        else:
-            print("Error occurred while sending file to API. Status code:", response.status_code)
+      federated_training()
+
     return 'File and data received'+ '200'
    
 if __name__ == "__main__":
-    updated = [0, 0, 0]
+    updated = []
     rejected = []
     logs = []
     num_rounds = 2
