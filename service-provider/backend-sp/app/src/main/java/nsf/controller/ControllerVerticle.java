@@ -202,6 +202,10 @@ public class ControllerVerticle extends AbstractVerticle {
         }
     }
 
+    private void setupMiddleware(Router router) {
+        router.route().handler(BodyHandler.create());
+        router.route().handler(this::corsHandler);
+    }
     private void corsHandler(RoutingContext ctx) {
         ctx.response()
             .putHeader("Access-Control-Allow-Origin", "*")
@@ -352,6 +356,37 @@ public class ControllerVerticle extends AbstractVerticle {
         });
     }
 
+    // private void deleteParticipant(RoutingContext ctx) {
+    //     String participantId = ctx.pathParam("participantId");
+    //     logger.info("Received request to delete participant: {}", participantId);
+        
+    //     JsonObject query = new JsonObject().put("_id", participantId);
+        
+    //     mongoClient.removeDocument(PARTICIPANTS_COLLECTION, query)
+    //         .onSuccess(result -> {
+    //             if (result.getRemovedCount() > 0) {
+    //                 logger.info("Successfully deleted participant: {}", participantId);
+    //                 ctx.response()
+    //                     .putHeader("Access-Control-Allow-Origin", "*")
+    //                     .setStatusCode(200)
+    //                     .end(new JsonObject().put("success", true).encode());
+    //             } else {
+    //                 logger.warn("Participant not found: {}", participantId);
+    //                 ctx.response()
+    //                     .putHeader("Access-Control-Allow-Origin", "*")
+    //                     .setStatusCode(404)
+    //                     .end(new JsonObject().put("error", "Participant not found").encode());
+    //             }
+    //         })
+    //         .onFailure(err -> {
+    //             logger.error("Failed to delete participant: {}", err.getMessage());
+    //             ctx.response()
+    //                 .putHeader("Access-Control-Allow-Origin", "*")
+    //                 .setStatusCode(500)
+    //                 .end(new JsonObject().put("error", "Failed to delete participant: " + err.getMessage()).encode());
+    //         });
+    // }
+
     private void deleteParticipant(RoutingContext ctx) {
         String participantId = ctx.pathParam("participantId");
         logger.info("Received request to delete participant: {}", participantId);
@@ -382,7 +417,6 @@ public class ControllerVerticle extends AbstractVerticle {
                     .end(new JsonObject().put("error", "Failed to delete participant: " + err.getMessage()).encode());
             });
     }
-
     private void getCollectedData(RoutingContext ctx){
         JsonObject allQuery = new JsonObject();
         mongoClient.find(SHARED_DATA_ITEMS_COLLECTION, allQuery, h -> {
@@ -1002,34 +1036,87 @@ public class ControllerVerticle extends AbstractVerticle {
     // }
 
 
+    // private void deleteInvitation(RoutingContext ctx) {
+    //     String invitationId = ctx.pathParam("invitationId");
+    //     JsonObject query = new JsonObject().put("_id", invitationId);
+        
+    //     Promise<Void> promise = Promise.promise();
+        
+    //     loginMongoClient.removeDocument("centralized_invitations", query, ar -> {
+    //         if (ar.succeeded()) {
+    //             // Continue with INVITATIONS_COLLECTION removal
+    //             mongoClient.removeDocument(INVITATIONS_COLLECTION, query, ar2 -> {
+    //                 if (ar2.succeeded()) {
+    //                     // Try to remove from PARTICIPANTS_COLLECTION
+    //                     mongoClient.removeDocument(PARTICIPANTS_COLLECTION, query, ar3 -> {
+    //                         // Regardless of participant removal result, proceed
+    //                         try {
+    //                             ariesClient.connectionsRemove(invitationId);
+    //                             ctx.response().setStatusCode(200).end();
+    //                         } catch (IOException e) {
+    //                             logger.error("Connection removal failed: " + e.getMessage());
+    //                             ctx.response().setStatusCode(500).end(e.getMessage());
+    //                         }
+    //                     });
+    //                 } else {
+    //                     ctx.response().setStatusCode(500).end(ar2.cause().getMessage());
+    //                 }
+    //             });
+    //         } else {
+    //             ctx.response().setStatusCode(500).end(ar.cause().getMessage());
+    //         }
+    //     });
+    // }
+
     private void deleteInvitation(RoutingContext ctx) {
         String invitationId = ctx.pathParam("invitationId");
-        JsonObject query = new JsonObject().put("_id", invitationId);
+        JsonObject invitationQuery = new JsonObject().put("_id", invitationId);
         
-        Promise<Void> promise = Promise.promise();
-        
-        loginMongoClient.removeDocument("centralized_invitations", query, ar -> {
-            if (ar.succeeded()) {
-                // Continue with INVITATIONS_COLLECTION removal
-                mongoClient.removeDocument(INVITATIONS_COLLECTION, query, ar2 -> {
-                    if (ar2.succeeded()) {
-                        // Try to remove from PARTICIPANTS_COLLECTION
-                        mongoClient.removeDocument(PARTICIPANTS_COLLECTION, query, ar3 -> {
-                            // Regardless of participant removal result, proceed
-                            try {
-                                ariesClient.connectionsRemove(invitationId);
-                                ctx.response().setStatusCode(200).end();
-                            } catch (IOException e) {
-                                logger.error("Connection removal failed: " + e.getMessage());
-                                ctx.response().setStatusCode(500).end(e.getMessage());
+        // First find the invitation to get its key and service provider ID
+        loginMongoClient.findOne("centralized_invitations", invitationQuery, null, centralAr -> {
+            if (centralAr.succeeded() && centralAr.result() != null) {
+                String invitationKey = centralAr.result().getString("invitationKey");
+                String serviceProviderID = centralAr.result().getString("spID");
+                
+                // Delete from centralized_invitations
+                loginMongoClient.removeDocument("centralized_invitations", invitationQuery, remCentralAr -> {
+                    if (remCentralAr.succeeded()) {
+                        // Delete from local INVITATIONS_COLLECTION
+                        mongoClient.removeDocument(INVITATIONS_COLLECTION, invitationQuery, invAr -> {
+                            if (invAr.succeeded()) {
+                                // Find and delete participants with this invitationKey
+                                JsonObject participantQuery = new JsonObject().put("invitationKey", invitationKey);
+                                mongoClient.removeDocuments(PARTICIPANTS_COLLECTION, participantQuery, partAr -> {
+                                    logger.info("Removed participants for invitation key: " + invitationKey);
+                                    
+                                    // Remove the Aries connection
+                                    try {
+                                        ariesClient.connectionsRemove(invitationId);
+                                        ctx.response().setStatusCode(200).end();
+                                    } catch (IOException e) {
+                                        logger.error("Connection removal failed: " + e.getMessage());
+                                        ctx.response().setStatusCode(200).end(); // Still consider successful since DB entries were removed
+                                    }
+                                });
+                            } else {
+                                ctx.response().setStatusCode(500).end(invAr.cause().getMessage());
                             }
                         });
                     } else {
-                        ctx.response().setStatusCode(500).end(ar2.cause().getMessage());
+                        ctx.response().setStatusCode(500).end(remCentralAr.cause().getMessage());
                     }
                 });
             } else {
-                ctx.response().setStatusCode(500).end(ar.cause().getMessage());
+                // If we can't find it in centralized DB, try local deletion anyway
+                mongoClient.removeDocument(INVITATIONS_COLLECTION, invitationQuery, invAr -> {
+                    try {
+                        ariesClient.connectionsRemove(invitationId);
+                        ctx.response().setStatusCode(200).end();
+                    } catch (IOException e) {
+                        logger.error("Connection removal failed: " + e.getMessage());
+                        ctx.response().setStatusCode(500).end(e.getMessage());
+                    }
+                });
             }
         });
     }

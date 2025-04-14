@@ -302,6 +302,7 @@ public class ControllerVerticle extends AbstractVerticle {
         ctx.response().setStatusCode(302).putHeader("Location", url).end();
     }
 
+    
 
     private void getStravaToken(RoutingContext ctx) {
         String code = ctx.request().getParam("code");
@@ -334,6 +335,20 @@ public class ControllerVerticle extends AbstractVerticle {
                     }
                 });
     }
+
+    private void corsHandler(RoutingContext ctx) {
+      ctx.response()
+          .putHeader("Access-Control-Allow-Origin", "*") // Or specific origin
+          .putHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, DELETE")
+          .putHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+          .putHeader("Access-Control-Allow-Credentials", "true");
+  
+      if (ctx.request().method() == HttpMethod.OPTIONS) {
+          ctx.response().setStatusCode(200).end();
+      } else {
+          ctx.next();
+      }
+  }
 
     private void getAthleteClubs(RoutingContext ctx) {
         if (stravaAccessToken == null) {

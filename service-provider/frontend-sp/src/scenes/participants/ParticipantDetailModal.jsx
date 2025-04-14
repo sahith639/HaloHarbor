@@ -13,14 +13,15 @@ const ParticipationDetailModal = ({ isOpen, onClose, detailData, onListingUpdate
     // onListingUpdate();
     // onClose();
     try {
-      var response = await axios.delete(`${config.BACKEND_BASE_URL}/participants/${detailData._id}`);
+      const response = await axios.delete(`${config.BACKEND_BASE_URL}/participants/${detailData._id}`);
+      console.log("Participant deleted successfully:", response.data);
       onListingUpdate();
       onClose();
   } catch (error) {
       console.error("Error deleting participant:", error);
-      // add a notification or alert here to inform the user
+      alert("Failed to delete participant: " + (error.response?.data || error.message));
   }
-  }
+}
 
   const containerStyle = {
     maxWidth: '500px', // Set the maximum width to 'sm' (small)
