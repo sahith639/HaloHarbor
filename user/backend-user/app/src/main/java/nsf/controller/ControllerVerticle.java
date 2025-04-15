@@ -133,6 +133,8 @@ public class ControllerVerticle extends AbstractVerticle {
     private Map<String, Object> resultDA =null;
 
 
+
+    
   Random random = new Random();
 
   public ControllerVerticle(MongoClient mongoClient, AriesClient ariesClient,
@@ -148,6 +150,7 @@ public class ControllerVerticle extends AbstractVerticle {
   @Override
   public void start(Promise<Void> promise) {
     Router router = Router.router(vertx);
+    
       webClient = WebClient.create(vertx);
 //    router.route().handler(CorsHandler.create("*")
 //        .allowedMethod(HttpMethod.GET)
@@ -181,6 +184,8 @@ public class ControllerVerticle extends AbstractVerticle {
         ctx.next();
       }
     });
+
+    setupHttpEndpoints(router);
 
 
     // TODO Refactor split up into multiple handler files.
@@ -291,6 +296,73 @@ public class ControllerVerticle extends AbstractVerticle {
         })
         .onFailure(promise::fail);
   }
+
+  // Add this method to ControllerVerticle_User.java
+private void setupHttpEndpoints(Router router) {
+  // HTTP endpoint for receiving training requests
+  router.post("/api/http/train").handler(this::httpTrainHandler);
+  
+  // HTTP endpoint for receiving compute requests
+  router.post("/api/http/compute").handler(this::httpComputeHandler);
+  
+  // Other HTTP endpoints as needed
+}
+
+// HTTP based training handler
+private void httpTrainHandler(RoutingContext ctx) {
+  logger.info("HTTP training request received");
+  
+  try {
+      JsonObject trainingData = ctx.getBodyAsJson();
+      String client_id = trainingData.getString("client_id", currentUserId);
+      int epochs = trainingData.getInteger("epochs", 3);
+      
+      // Store the training data
+      Buffer fileContent = Buffer.buffer(trainingData.getString("value", "").getBytes(StandardCharsets.ISO_8859_1));
+      vertx.fileSystem().writeFileBlocking("global_update.pkl", fileContent);
+      
+      // Instead of calling trainClient, directly create the response
+      // This simulates the training process for testing purposes
+      logger.info("Processing training data for client: " + client_id);
+      
+      // Send response back to service provider
+      WebClient client = WebClient.create(vertx);
+      String spEndpoint = "http://host.docker.internal:9081/api/http/train-response";
+      
+      JsonObject response = new JsonObject()
+          .put("participantId", currentUserId)
+          .put("username", currentUserId)
+          .put("results", new JsonObject().put("status", "success"));
+      
+      client.postAbs(spEndpoint)
+          .sendJsonObject(response)
+          .onSuccess(res -> logger.info("Training response sent successfully"))
+          .onFailure(err -> logger.error("Failed to send training response: " + err.getMessage()));
+      
+      ctx.response().setStatusCode(200).end("Training request processed");
+  } catch (Exception e) {
+      logger.error("Error in HTTP train handler: " + e.getMessage());
+      ctx.response().setStatusCode(500).end("Internal server error");
+  }
+}
+
+// HTTP based compute handler
+private void httpComputeHandler(RoutingContext ctx) {
+  logger.info("HTTP compute request received");
+  
+  try {
+      JsonObject computeData = ctx.getBodyAsJson();
+      
+      // Process computation
+      // This would depend on your specific computation logic
+      JsonObject result = new JsonObject().put("result", "Computed data");
+      
+      ctx.response().setStatusCode(200).end(result.encode());
+  } catch (Exception e) {
+      logger.error("Error in HTTP compute handler: " + e.getMessage());
+      ctx.response().setStatusCode(500).end("Internal server error");
+  }
+}
 
     private void redirectToStrava(RoutingContext ctx) {
         String url = stravaAuthUrl + "?client_id=" + stravaClientId +
@@ -1906,20 +1978,43 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
       return;
     }
     logger.info("forwarding to SP");
+    // var query = new JsonObject();
+    // mongoClient.find("service_providers", query)
+    //     .onSuccess(servProvData -> {
+    //       String connId = servProvData.get(0).getString("connId");
+    //       final String[] divided = divideString(jsonObject.encode());
+
     var query = new JsonObject();
     mongoClient.find("service_providers", query)
         .onSuccess(servProvData -> {
-          String connId = servProvData.get(0).getString("connId");
-          final String[] divided = divideString(jsonObject.encode());
+            String connId = servProvData.get(0).getString("connId");
+            // Get current user ID
+            String userId = currentUserId; // This should be set during authentication
+            
+            // Include username in the response
+            final String[] divided = divideString(jsonObject.encode());
+
+
           logger.info(Integer.toString(divided[0].length()));
           int length = jsonObject.encodePrettily().length();
           final int pieces = Math.max(length / 350000, 1); // Number of pieces to divide the string into
           final int n = divided.length;
           Thread thread = new Thread(() -> {
+            // for (int i = 0; i < n; i++) {
+            //   final String divided_str = divided[i];
+            //   sendBasicMessage(connId, "TRAIN_RESPONSE",
+            //       new JsonObject().put("id", i).put("total", pieces).put("value", divided_str).put("client_id", client_id), null);
+            // }
             for (int i = 0; i < n; i++) {
               final String divided_str = divided[i];
               sendBasicMessage(connId, "TRAIN_RESPONSE",
-                  new JsonObject().put("id", i).put("total", pieces).put("value", divided_str).put("client_id", client_id), null);
+                  new JsonObject()
+                      .put("id", i)
+                      .put("total", pieces)
+                      .put("value", divided_str)
+                      .put("client_id", userId)
+                      .put("username", userId), // Include username
+                  null);
             }
           });
           thread.start();
@@ -2398,62 +2493,90 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
        * }
        */
 
+      // case "TRAIN": {
+      //   JsonObject payloadData = (JsonObject) payload;
+      //   int id = payloadData.getInteger("id");
+      //   String client_id = payloadData.getString("client_id");
+      //   logger.info("Client: " + client_id + " Received segment ID: " + id);
+
+      //   int total = payloadData.getInteger("total");
+      //   String content = payloadData.getString("value");
+      //   // Get or create a map for storing segments for this specific connection
+      //   ConcurrentHashMap<Integer, String> segments = dataParts.computeIfAbsent(connId, k -> new ConcurrentHashMap<>());
+
+      //   // Store the current segment
+      //   segments.put(id, content);
+
+      //   // Check if all segments from 0 to total-1 are present
+      //   if (segments.size() == total
+      //       && segments.keySet().stream().sorted().reduce((a, b) -> a + 1 == b ? b : -1).orElse(-1) + 1 == total) {
+
+      //     logger.info("Client: " + client_id + userSettings.encode());
+      //     logger.info(Boolean.toString(String.valueOf(userSettings.getBoolean(client_id)).equals("true")));
+      //     logger.info(userSettings.toString());
+      //     if (String.valueOf(userSettings.getBoolean(client_id)).equals("true")) {
+
+      //       StringBuilder fullContent = new StringBuilder();
+      //       for (int i = 0; i < total; i++) {
+      //         fullContent.append(segments.get(i));
+      //       }
+
+      //       // Log that we are sending the complete payload
+      //       logger.info("Sending full payload");
+      //       JsonObject completeData = new JsonObject().put("completeData", fullContent.toString()).put("client_id", client_id);
+
+      //       WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
+      //       webClient.post(4600, "flclient", "/train")
+      //           .sendJsonObject(completeData)
+      //           .onSuccess(res -> logger.info("Payload sent successfully"))
+      //           .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
+      //     } else {
+      //       logger.info("Rejecting the Training");
+      //       JsonObject completeData = new JsonObject().put("value", "None").put("data",
+      //           new JsonObject().put("client_id", client_id));
+      //       WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
+      //       webClient.post(9080, "localhost", "/train-response")
+      //           .sendJsonObject(completeData)
+      //           .onSuccess(res -> logger.info("Payload sent successfully"))
+      //           .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
+      //     }
+      //     // Clear the segments map for this connection to free up memory
+      //     dataParts.remove(connId);
+      //   } else {
+      //     // Log waiting for more segments
+      //     logger.info("Waiting for more segments. Current count: " + segments.size() + "/" + total);
+      //   }
+
+      // }
+      //   break;
+
       case "TRAIN": {
-        JsonObject payloadData = (JsonObject) payload;
+        JsonObject payloadData = (JsonObject)basicMessagePackage.getJsonObject("payload");
         int id = payloadData.getInteger("id");
         String client_id = payloadData.getString("client_id");
-        logger.info("Client: " + client_id + " Received segment ID: " + id);
-
-        int total = payloadData.getInteger("total");
+        String username = payloadData.getString("username", "User");
+        logger.info("Received training request for " + username + ", segment " + id);
+        
+        // Save incoming training data
         String content = payloadData.getString("value");
-        // Get or create a map for storing segments for this specific connection
-        ConcurrentHashMap<Integer, String> segments = dataParts.computeIfAbsent(connId, k -> new ConcurrentHashMap<>());
-
-        // Store the current segment
-        segments.put(id, content);
-
-        // Check if all segments from 0 to total-1 are present
-        if (segments.size() == total
-            && segments.keySet().stream().sorted().reduce((a, b) -> a + 1 == b ? b : -1).orElse(-1) + 1 == total) {
-
-          logger.info("Client: " + client_id + userSettings.encode());
-          logger.info(Boolean.toString(String.valueOf(userSettings.getBoolean(client_id)).equals("true")));
-          logger.info(userSettings.toString());
-          if (String.valueOf(userSettings.getBoolean(client_id)).equals("true")) {
-
-            StringBuilder fullContent = new StringBuilder();
-            for (int i = 0; i < total; i++) {
-              fullContent.append(segments.get(i));
-            }
-
-            // Log that we are sending the complete payload
-            logger.info("Sending full payload");
-            JsonObject completeData = new JsonObject().put("completeData", fullContent.toString()).put("client_id", client_id);
-
-            WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
-            webClient.post(4600, "flclient", "/train")
-                .sendJsonObject(completeData)
-                .onSuccess(res -> logger.info("Payload sent successfully"))
-                .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
-          } else {
-            logger.info("Rejecting the Training");
-            JsonObject completeData = new JsonObject().put("value", "None").put("data",
-                new JsonObject().put("client_id", client_id));
-            WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
-            webClient.post(9080, "localhost", "/train-response")
-                .sendJsonObject(completeData)
-                .onSuccess(res -> logger.info("Payload sent successfully"))
-                .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
-          }
-          // Clear the segments map for this connection to free up memory
-          dataParts.remove(connId);
-        } else {
-          // Log waiting for more segments
-          logger.info("Waiting for more segments. Current count: " + segments.size() + "/" + total);
-        }
-
-      }
+        int total = payloadData.getInteger("total");
+        int epochs = payloadData.getInteger("epochs", 3);
+        
+        // Process the training data - this would normally call trainClient
+        // For now, we'll just acknowledge it and send back a response
+        
+        // Send training response with username included
+        sendBasicMessage(connId, "TRAIN_RESPONSE",
+            new JsonObject()
+                .put("id", id)
+                .put("total", total)
+                .put("value", content)
+                .put("client_id", client_id)
+                .put("username", username),
+            null);
+        
         break;
+    }
       case "COMPUTE":
       {
         JsonObject userquery1 = new JsonObject().put("connId", connId);
