@@ -60,28 +60,70 @@ const ParticipantsPage = () => {
 
 
 // Modify the updateInvitationsList function in index.jsx
-async function updateInvitationsList() {
-  try {
-    // Get latest invitations
-    const invitationsResponse = await axios.get(`${config.BACKEND_BASE_URL}/invitations`);
-    const invitationsMap = {};
-    for (const invitation of invitationsResponse.data) {
-      const invitationKey = invitation.invitationKey ? invitation.invitationKey : "[not tracked]";
-      invitationsMap[invitationKey] = invitation;
-    }
-    setInvitations(invitationsMap);
+// async function updateInvitationsList() {
+//   try {
+//     // Get latest invitations
+//     const invitationsResponse = await axios.get(`${config.BACKEND_BASE_URL}/invitations`);
+//     const invitationsMap = {};
+//     for (const invitation of invitationsResponse.data) {
+//       const invitationKey = invitation.invitationKey ? invitation.invitationKey : "[not tracked]";
+//       invitationsMap[invitationKey] = invitation;
+//     }
+//     setInvitations(invitationsMap);
 
-    // Get latest participants
-    const participantsResponse = await axios.get(`${config.BACKEND_BASE_URL}/participants`);
-    const participantsNew = participantsResponse.data.map((participant, i) => ({
-      ...participant,
-      number: i + 1
-    }));
-    setParticipants(participantsNew);
-  } catch (error) {
-    console.error("Error updating listings:", error);
+//     // Get latest participants
+//     const participantsResponse = await axios.get(`${config.BACKEND_BASE_URL}/participants`);
+//     const participantsNew = participantsResponse.data.map((participant, i) => ({
+//       ...participant,
+//       number: i + 1
+//     }));
+//     setParticipants(participantsNew);
+//   } catch (error) {
+//     console.error("Error updating listings:", error);
+//   }
+// }
+
+  // Enhanced function to handle immediate UI updates
+  function updateInvitationsList() {
+    // Don't use the Promise.all pattern to avoid unnecessary state batching
+    
+    // First, update the invitations state
+    axios.get(`${config.BACKEND_BASE_URL}/invitations`)
+      .then(invitationsResponse => {
+        console.log("Fetched invitations list:", invitationsResponse.data);
+
+        const invitationsMap = {};
+        for (const invitation of invitationsResponse.data) {
+          const invitationKey = invitation.invitationKey ? invitation.invitationKey : "[not tracked]";
+          invitationsMap[invitationKey] = invitation;
+        }
+        
+        // Update invitations state immediately
+        setInvitations(invitationsMap);
+      })
+      .catch(error => {
+        console.error("Error fetching invitations:", error);
+      });
+
+    // Then update the participants state
+    axios.get(`${config.BACKEND_BASE_URL}/participants`)
+      .then(participantsResponse => {
+        console.log("Fetched participants list:", participantsResponse.data);
+        
+        const participantsNew = participantsResponse.data;
+        for (var i = 0; i < participantsNew.length; i++) {
+          const participant = participantsNew[i];
+          participant.number = i + 1;
+        }
+        
+        // Update participants state immediately
+        setParticipants(participantsResponse.data);
+      })
+      .catch(error => {
+        console.error("Error fetching participants:", error);
+      });
   }
-}
+  
 
 // Set up polling for real-time updates
 useEffect(() => {
