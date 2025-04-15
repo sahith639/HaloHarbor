@@ -374,6 +374,7 @@ public class ControllerVerticle extends AbstractVerticle {
         });
     }
 
+
     // private void deleteParticipant(RoutingContext ctx) {
     //     String participantId = ctx.pathParam("participantId");
     //     logger.info("Received request to delete participant: {}", participantId);
@@ -409,31 +410,55 @@ public class ControllerVerticle extends AbstractVerticle {
         String participantId = ctx.pathParam("participantId");
         logger.info("Received request to delete participant: {}", participantId);
         
-        JsonObject query = new JsonObject().put("_id", participantId);
-        
-        mongoClient.removeDocument(PARTICIPANTS_COLLECTION, query)
-            .onSuccess(result -> {
-                if (result.getRemovedCount() > 0) {
-                    logger.info("Successfully deleted participant: {}", participantId);
-                    ctx.response()
-                        .putHeader("Access-Control-Allow-Origin", "*")
-                        .setStatusCode(200)
-                        .end(new JsonObject().put("success", true).encode());
-                } else {
-                    logger.warn("Participant not found: {}", participantId);
-                    ctx.response()
-                        .putHeader("Access-Control-Allow-Origin", "*")
-                        .setStatusCode(404)
-                        .end(new JsonObject().put("error", "Participant not found").encode());
-                }
-            })
-            .onFailure(err -> {
-                logger.error("Failed to delete participant: {}", err.getMessage());
+        // First, find the participant to get the invitation key
+        JsonObject findQuery = new JsonObject().put("_id", participantId);
+        mongoClient.findOne(PARTICIPANTS_COLLECTION, findQuery, null, findRes -> {
+            if (findRes.succeeded() && findRes.result() != null) {
+                JsonObject participant = findRes.result();
+                String invitationKey = participant.getString("invitationKey");
+                String connId = participant.getString("connId");
+                
+                // Delete the participant
+                mongoClient.removeDocument(PARTICIPANTS_COLLECTION, findQuery)
+                    .onSuccess(result -> {
+                        // Log success
+                        logger.info("Successfully deleted participant: {}", participantId);
+                        
+                        // Try to remove the Aries connection
+                        try {
+                            ariesClient.connectionsRemove(connId);
+                        } catch (IOException e) {
+                            logger.warn("Failed to remove Aries connection: {}", e.getMessage());
+                            // Continue even if connection removal fails
+                        }
+                        
+                        // Send successful response
+                        ctx.response()
+                            .putHeader("Access-Control-Allow-Origin", "*")
+                            .setStatusCode(200)
+                            .end(new JsonObject()
+                                .put("success", true)
+                                .put("invitationKey", invitationKey)
+                                .encode());
+                    })
+                    .onFailure(err -> {
+                        logger.error("Failed to delete participant: {}", err.getMessage());
+                        ctx.response()
+                            .putHeader("Access-Control-Allow-Origin", "*")
+                            .setStatusCode(500)
+                            .end(new JsonObject()
+                                .put("error", "Failed to delete participant: " + err.getMessage())
+                                .encode());
+                    });
+            } else {
                 ctx.response()
                     .putHeader("Access-Control-Allow-Origin", "*")
-                    .setStatusCode(500)
-                    .end(new JsonObject().put("error", "Failed to delete participant: " + err.getMessage()).encode());
-            });
+                    .setStatusCode(404)
+                    .end(new JsonObject()
+                        .put("error", "Participant not found")
+                        .encode());
+            }
+        });
     }
     private void getCollectedData(RoutingContext ctx){
         JsonObject allQuery = new JsonObject();

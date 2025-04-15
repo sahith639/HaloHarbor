@@ -36,28 +36,65 @@ const ParticipantsPage = () => {
     const [participantDetailData, setParticipantDetailData] = useState({});
 
 
-    async function updateInvitationsList() {
-      const invitationsResponse = await axios.get(`${config.BACKEND_BASE_URL}/invitations`);
-      console.log("fetched invitations list:", invitationsResponse.data);
+    // async function updateInvitationsList() {
+    //   const invitationsResponse = await axios.get(`${config.BACKEND_BASE_URL}/invitations`);
+    //   console.log("fetched invitations list:", invitationsResponse.data);
 
-      const invitationsMap = {};
-      for (const invitation of invitationsResponse.data){
-        const invitationKey = invitation.invitationKey ? invitation.invitationKey : "[not tracked]";
-        invitationsMap[invitationKey] = invitation;
-      }
-      setInvitations(invitationsMap);
+    //   const invitationsMap = {};
+    //   for (const invitation of invitationsResponse.data){
+    //     const invitationKey = invitation.invitationKey ? invitation.invitationKey : "[not tracked]";
+    //     invitationsMap[invitationKey] = invitation;
+    //   }
+    //   setInvitations(invitationsMap);
 
 
-      const participantsResponse = await axios.get(`${config.BACKEND_BASE_URL}/participants`);
-      console.log("fetched participants list:", participantsResponse.data);
-      const participantsNew = participantsResponse.data;
-      for (var i = 0; i < participantsNew.length; i++){
-        const participant = participantsNew[i];
-        participant.number = i + 1;
-      }
-      setParticipants(participantsResponse.data);
+    //   const participantsResponse = await axios.get(`${config.BACKEND_BASE_URL}/participants`);
+    //   console.log("fetched participants list:", participantsResponse.data);
+    //   const participantsNew = participantsResponse.data;
+    //   for (var i = 0; i < participantsNew.length; i++){
+    //     const participant = participantsNew[i];
+    //     participant.number = i + 1;
+    //   }
+    //   setParticipants(participantsResponse.data);
+    // }
+
+
+// Modify the updateInvitationsList function in index.jsx
+async function updateInvitationsList() {
+  try {
+    // Get latest invitations
+    const invitationsResponse = await axios.get(`${config.BACKEND_BASE_URL}/invitations`);
+    const invitationsMap = {};
+    for (const invitation of invitationsResponse.data) {
+      const invitationKey = invitation.invitationKey ? invitation.invitationKey : "[not tracked]";
+      invitationsMap[invitationKey] = invitation;
     }
+    setInvitations(invitationsMap);
 
+    // Get latest participants
+    const participantsResponse = await axios.get(`${config.BACKEND_BASE_URL}/participants`);
+    const participantsNew = participantsResponse.data.map((participant, i) => ({
+      ...participant,
+      number: i + 1
+    }));
+    setParticipants(participantsNew);
+  } catch (error) {
+    console.error("Error updating listings:", error);
+  }
+}
+
+// Set up polling for real-time updates
+useEffect(() => {
+  // Initial data load
+  updateInvitationsList();
+  
+  // Optional: Set up polling for real-time updates if needed
+  const intervalId = setInterval(updateInvitationsList, 5000); // Poll every 5 seconds
+  
+  return () => {
+    clearInterval(intervalId); // Clean up on component unmount
+  };
+}, []);
     
     const handleInputChange = (e) => {
       const { name, value } = e.target;
@@ -105,6 +142,24 @@ const ParticipantsPage = () => {
       { field: 'id', headerName: 'ID' },  
       { field: 'createdAtStr', headerName: 'Join Date Time', flex: 1 },
       { field: 'invitationName', headerName: 'Invitation Used', flex: 1 },  
+      { 
+        field: 'actions', 
+        headerName: 'Actions', 
+        width: 120,
+        renderCell: (params) => (
+          <Button 
+            variant="contained" 
+            size="small" 
+            color="error"
+            onClick={(e) => {
+              e.stopPropagation(); // Prevent row selection
+              handleDeleteParticipant(params.row);
+            }}
+          >
+            Remove
+          </Button>
+        ),
+      }
       ];
   
     const rows = participants.map((participant, idx) => {
@@ -119,6 +174,28 @@ const ParticipantsPage = () => {
       console.log(r);
       return r;
     });
+
+
+    // Delete participant
+    const handleDeleteParticipant = async (participant) => {
+      if (window.confirm(`Are you sure you want to remove participant ${participant.id}?`)) {
+        try {
+          await axios.delete(`${config.BACKEND_BASE_URL}/participants/${participant._id}`);
+          
+          // Update the local state immediately
+          setParticipants(prevParticipants => 
+            prevParticipants.filter(p => p._id !== participant._id)
+          );
+          
+          // If this participant was created using an invitation, also update invitations list
+          if (participant.invitationKey && invitations[participant.invitationKey]) {
+            updateInvitationsList();
+          }
+        } catch (error) {
+          console.error("Failed to delete participant:", error);
+        }
+      }
+    };
 
     // <div style={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'column' }}>
     //         {participants.map(item => {
