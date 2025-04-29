@@ -1,155 +1,130 @@
-import { useState, useEffect, useRef  } from 'react'
-import { Box, Stack } from '@mui/system'
-// import { useStateValue } from '../../state/state'
-import { useNavigate } from 'react-router-dom'
-import { TextField , Backdrop, Fade, Modal, Card, CardContent, Button, IconButton, Typography, useTheme, ButtonBase  } from "@mui/material";
-// import cachePull from '../../utils/cachePull'
-import { NavLink } from "react-router-dom";
-import config from '../../utils/config'
-import axios from 'axios'
-import { styled } from '@mui/system';
+// ✅ Updated ConnectionsPage (index.jsx) using Tailwind
+
+import { useState, useEffect, useRef } from 'react';
+import { jwtDecode } from 'jwt-decode';
+import axios from 'axios';
+import config from '../../utils/config';
 import ServProvDetailModal from './ServProvDetailModal';
 import MyModal from '../../components/MyModal';
 import MyModalContent from '../../components/MyModalContent';
-import MyCard from '../../components/MyCard';
-import SectionCard from '../../components/SectionCard';
 import { ToastContainer, toast } from 'react-toastify';
-import { jwtDecode } from "jwt-decode";
-
+import 'react-toastify/dist/ReactToastify.css';
 
 const ConnectionsPage = () => {
-    const theme = useTheme();
-    const colors = theme.palette;
-    // const [, dispatch] = useStateValue()
-    // const navigate = useNavigate()
+  const [servProvs, setServProvs] = useState([]);
+  const [newInvitationModalOpen, setNewInvitationModalOpen] = useState(false);
+  const [invitationUrl, setInvitationUrl] = useState('');
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [detailData, setDetailData] = useState({});
+  const [userId, setUserId] = useState('');
 
-    const [servProvs, setServProvs] = useState([]);
-
-    const [newInvitationModalOpen, setNewInvitationModalOpen] = useState(false);
-    const [invitationUrl, setInvitationUrl] = useState('');
-
-    const [detailModalOpen, setDetailModalOpen] = useState(false);
-    const [detailData, setDetailData] = useState({});
-    const [userId, setUserId] = useState('');  // Store userId in the component's state
-
-    useEffect(() => {
-      // Get the JWT token from localStorage
-      const token = localStorage.getItem("jwt_token");
-
-      // If token exists, decode it to get the userId
-      if (token) {
-        const decoded = jwtDecode(token);  // Decode the JWT token
-        setUserId(decoded.sub);  // Set the userId from the decoded token
-      } else {
-        toast.error("No token found. Please log in again.");
-      }
-    }, []);
-
-
-    async function updateServProvsList() {
-      const response = await axios.get(`${config.USER_CONTROLLER_BASE_URL}/service-providers?userid=${userId}`);
-      console.log("fetched serv providers list:", response.data);
-      setServProvs(response.data);
+  useEffect(() => {
+    const token = localStorage.getItem('jwt_token');
+    if (token) {
+      const decoded = jwtDecode(token);
+      setUserId(decoded.sub);
+    } else {
+      toast.error('No token found. Please log in again.');
     }
+  }, []);
 
-    const handleSubmit = async () => {
-      const formData = new FormData();
-      formData.append('invitationUrl', invitationUrl);
-      var response = await axios.post(`${config.USER_CONTROLLER_BASE_URL}/service-providers?userid=${userId}`, formData);
+  const updateServProvsList = async () => {
+    const response = await axios.get(`${config.USER_CONTROLLER_BASE_URL}/service-providers?userid=${userId}`);
+    setServProvs(response.data);
+  };
 
-      // Close the modal:
-      setNewInvitationModalOpen(false);
+  const handleSubmit = async () => {
+    const formData = new FormData();
+    formData.append('invitationUrl', invitationUrl);
+    const response = await axios.post(`${config.USER_CONTROLLER_BASE_URL}/service-providers?userid=${userId}`, formData);
 
-      var newServProv = response.data;
-      setDetailData(newServProv);
-      setDetailModalOpen(true);
+    setNewInvitationModalOpen(false);
+    const newServProv = response.data;
+    setDetailData(newServProv);
+    setDetailModalOpen(true);
+    updateServProvsList();
+    toast.success('Added Service Provider');
+  };
 
+  const handleTextChange = (e) => {
+    setInvitationUrl(e.target.value);
+  };
+
+  const hasRan = useRef(false);
+  useEffect(() => {
+    if (!hasRan.current) {
+      hasRan.current = true;
       updateServProvsList();
+    }
+  }, []);
 
-      toast.success("Added Service Provider");
-    };
+  return (
+    <div className="p-6 text-white">
+      <h2 className="text-2xl font-bold mb-4 text-white">Connected Service Providers</h2>
 
-    const handleTextChange = (e) => {
-      setInvitationUrl(e.target.value);
-    };
+      <div className="flex flex-col gap-4 mb-6">
+        {servProvs.map((item) => (
+          <div
+            key={item._id}
+            onClick={() => {
+              setDetailData(item);
+              setDetailModalOpen(true);
+            }}
+            className="bg-gray-900 hover:bg-gray-800 cursor-pointer p-4 rounded-lg shadow-md transition duration-200"
+          >
+            <h3 className="text-lg font-semibold">{item.bannerData.name} <span className="text-sm text-gray-400">(ID: {item.connId.substring(0, 8)})</span></h3>
+            <p className="text-sm text-gray-300">{item.bannerData.desc}</p>
+          </div>
+        ))}
+      </div>
 
-    const hasRan = useRef(false);
-    useEffect(() => {
-      if (!hasRan.current){
-        hasRan.current = true;
+      <button
+        onClick={() => setNewInvitationModalOpen(true)}
+        className="bg-pink-500 hover:bg-pink-600 text-white px-4 py-2 rounded-md"
+      >
+        Add Service Provider
+      </button>
 
-        updateServProvsList();
-      }
-    }, []);
+      {/* Modal to Add Service Provider */}
+      <MyModal open={newInvitationModalOpen} onClose={() => setNewInvitationModalOpen(false)}>
+        <MyModalContent>
+          <h2 className="text-xl font-bold mb-4">Add a Service Provider</h2>
 
-    return (
-            <SectionCard>
-              <Typography variant="h3" sx={{ color: "#000000"}}>
-                Connected Service Providers
-              </Typography>
-              {/* {servProvs.map(servProv => (
-                <li key={servProv._id}>{servProv.connId}</li>
-              ))} */}
-              
-              <div style={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'column' }}>
-              {servProvs.map(item => {
-                  return (
-                    <MyCard key={item._id} onClick={() => { setDetailData(item); setDetailModalOpen(true) }} style={{cursor: 'pointer'}}>
-                      <CardContent>
-                        {/* TODO click to bringup detail modal - then theres a list of toggles for each requested permission (which the serv prov provides/responds again from the first/initial connection message). Delete button here. */}
-                        <Typography component="div">
-                          {item.bannerData.name} <i>(ID: {item.connId.substring(0, 8)})</i>
-                        </Typography>
-                        <Typography color="text.secondary">{item.bannerData.desc}</Typography>
-                      </CardContent>
-                    </MyCard>
-                  );
-                })}
-              </div>
-              
-              
-              <Button
-                sx={{ display: "flex", justifyContent: "center", alignItems: "center" }}
-                variant="contained"
-                onClick={() => setNewInvitationModalOpen(true)}>
-                  Add Service Provider
-              </Button>
+          <input
+            type="text"
+            placeholder="Invitation URL"
+            value={invitationUrl}
+            onChange={handleTextChange}
+            className="w-full p-2 mb-4 rounded border border-gray-300 text-black"
+          />
 
+          <div className="flex gap-3">
+            <button
+              onClick={handleSubmit}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded"
+            >
+              Add
+            </button>
+            <button
+              onClick={() => setNewInvitationModalOpen(false)}
+              className="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded"
+            >
+              Cancel
+            </button>
+          </div>
+        </MyModalContent>
+      </MyModal>
 
-        {/* Popup Modal */}
-        <MyModal
-          open={newInvitationModalOpen}
-          onClose={() => setNewInvitationModalOpen(false)}
-          closeAfterTransition
-        >
-          <Fade in={newInvitationModalOpen}>
-            <MyModalContent>
-              <h2>Add a Service Provider</h2>
-              
-              <TextField
-                label="Invitation URL"
-                name="invitation-url"
-                value={invitationUrl}
-                onChange={handleTextChange}
-                fullWidth
-                autoComplete="off"
-                margin="normal"
-              />
+      <ServProvDetailModal
+        isOpen={detailModalOpen}
+        onClose={() => setDetailModalOpen(false)}
+        summaryData={detailData}
+        onServProvsUpdate={updateServProvsList}
+      />
 
-              <Button variant="contained" onClick={handleSubmit}>
-                Add
-              </Button>
-              <Button variant="contained" onClick={() => setNewInvitationModalOpen(false)} color="secondary">
-                Cancel
-              </Button>
-            </MyModalContent>
-          </Fade>
-        </MyModal>
+      <ToastContainer />
+    </div>
+  );
+};
 
-
-        <ServProvDetailModal isOpen={detailModalOpen} onClose={() => setDetailModalOpen(false)} summaryData={detailData} onServProvsUpdate={updateServProvsList} />
-      </SectionCard>
-    );
-}
-
-export default ConnectionsPage
+export default ConnectionsPage;

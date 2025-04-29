@@ -1,45 +1,35 @@
-// src/components/PageFrame.jsx
-
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import ThisProSidebar from './SideBar.jsx';
-import { Box, Button } from '@mui/material';
 import { ToastContainer } from 'react-toastify';
 
 const PageFrame = ({ element }) => {
   const navigate = useNavigate();
 
-  /**const handleLogout = () => {
-   localStorage.removeItem("jwt_token"); // Clear token
-
-   navigate("/login"); // Redirect to login
-   };*/
-
   const logout = async (url) => {
     try {
-      localStorage.removeItem("jwt_token"); // Clear token
+      localStorage.removeItem("jwt_token");
       const response = await fetch(url);
-      navigate("/login"); // Redirect to login
+      navigate("/login");
     } catch (error) {
       console.error('Error:', error);
     }
   };
 
   return (
-      <div style={{ height: "100vh", display: "flex" }}>
+    <div className="flex h-screen overflow-hidden">
+      {/* Sidebar */}
+      <div className="h-full">
         <ThisProSidebar />
-        <main>
-          <Box m="5vh">
-            <Button variant="outlined" color="secondary" onClick={() => logout('http://localhost:9080/oauth/logout')}>
-              Logout
-            </Button>
-            {element}
-            <ToastContainer />
-          </Box>
-        </main>
       </div>
+
+      {/* Main Content */}
+      <div className="flex-1 overflow-y-auto bg-gradient-to-br from-indigo-600 via-purple-700 to-pink-600 p-6 text-white">
+        {element}
+        <ToastContainer />
+      </div>
+    </div>
   );
 };
 
 export default PageFrame;
-

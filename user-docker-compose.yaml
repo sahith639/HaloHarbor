@@ -32,8 +32,6 @@ services:
       build:
         context: "./user/FLclient"
       container_name: flclient
-      environment:
-        PYTHONUNBUFFERED: 1
       ports:
         - 4600:4600
       networks:

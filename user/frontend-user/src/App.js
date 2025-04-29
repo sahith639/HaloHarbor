@@ -4,6 +4,7 @@ import { jwtDecode } from "jwt-decode";
 import { CssBaseline, ThemeProvider } from '@mui/material';
 import './App.css';
 
+
 // Components
 import Dashboard from './scenes/dashboard';
 import PageFrame from './components/PageFrame';
@@ -11,8 +12,11 @@ import Profile from './scenes/profile';
 import ConnectionsPage from './scenes/connections';
 import Insights from './scenes/insights';
 import HistoryPage from './scenes/history';
+import AccessPage from './scenes/access';
 import Login from './scenes/login';
 import OAuthIntegration from './scenes/DataPlug/OAuthIntegration';
+import HelpPage from './scenes/help';
+
 
 // Theme
 import { theme } from "./theme";
@@ -122,6 +126,24 @@ function App() {
               </ProtectedRoute>
             } 
           />
+          <Route 
+               path="/help" 
+                element={
+                   <ProtectedRoute>
+                    <PageFrame element={<HelpPage />} />
+                  </ProtectedRoute>
+            }
+        />
+                  <Route 
+               path="/access" 
+                element={
+                   <ProtectedRoute>
+                    <PageFrame element={<AccessPage />} />
+                  </ProtectedRoute>
+            }
+        />
+
+
           
           {/* Catch all route */}
           <Route path="*" element={<Navigate to="/login" replace />} />

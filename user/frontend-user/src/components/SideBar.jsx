@@ -1,161 +1,92 @@
-import { useState, useEffect } from "react";
-import { Sidebar, Menu, MenuItem} from "react-pro-sidebar";
-import { Box, IconButton, Typography, useTheme } from "@mui/material";
-import { NavLink } from "react-router-dom";
-// import { tokens } from "../theme";
-// import 'react-pro-sidebar/dist/css/styles.css';
-import MenuOutlinedIcon from "@mui/icons-material/MenuOutlined";
-import HomeOutlinedIcon from "@mui/icons-material/HomeOutlined";
-import PersonIcon from '@mui/icons-material/Person';
-import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined';
-import LanguageIcon from '@mui/icons-material/Language';
-import LogoutOutlinedIcon from '@mui/icons-material/LogoutOutlined';
-import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
-import TrendingUpOutlinedIcon from '@mui/icons-material/TrendingUpOutlined';
-import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
-import ChatBubbleOutlineOutlinedIcon from '@mui/icons-material/ChatBubbleOutlineOutlined';
-import LocalFloristOutlinedIcon from '@mui/icons-material/LocalFloristOutlined';
-import QuestionMarkOutlinedIcon from '@mui/icons-material/QuestionMarkOutlined';
-import DocumentScannerOutlinedIcon from '@mui/icons-material/DocumentScannerOutlined';
-import DataObjectIcon from '@mui/icons-material/DataObject';
+import { NavLink, useNavigate } from "react-router-dom";
+import {
+  HomeOutlined,
+  ChatBubbleOutline,
+  Language,
+  InsertChartOutlined,
+  HelpOutline,
+  ExitToApp,
+  Lock,
+  DataObject,
+} from "@mui/icons-material";
+import { useEffect } from "react";
+import haloLogo from "../scenes/login/halo.png"; // ✅ logo import
 
-// import StressScore from "../StressScore";
-// import Logout from "../../components/Logout";
+const menuItems = [
+  { title: "Dashboard", icon: <HomeOutlined />, to: "/" },
+  { title: "Shared Data", icon: <ChatBubbleOutline />, to: "/history" },
+  { title: "Connections", icon: <Language />, to: "/connections" },
+  { title: "My Insights", icon: <InsertChartOutlined />, to: "/insights" },
+  { title: "Access Control", icon: <Lock />, to: "/access" },
+  { title: "Data Plug", icon: <DataObject />, to: "/oauth" },
+  { title: "Help / About", icon: <HelpOutline />, to: "/help" },
+];
 
+const SideBar = () => {
+  const navigate = useNavigate();
 
-const SidebarHeader = () => {
-  return (
-    <Typography sx={{ textAlign: 'center', marginBottom: '1rem' }} variant="h4" fontWeight={800} color="#003071" >
-      User Data Agent
-    </Typography>
-  );
-};
-
-const Item = ({ title, to, icon, selected, setSelected }) => {
-  // const theme = useTheme();
-  // const colors = tokens(theme.palette.mode);
-  // const activeStyle = {
-  //   color: 'blue',
-  //   // Add other styles as needed
-  // };
-
-  return (
-    <MenuItem
-      active={selected === title}
-      onClick={() => setSelected(title)}
-      icon={icon}
-      component={
-      <NavLink to={to} />
+  const handleLogout = async () => {
+    try {
+      await fetch("http://localhost:9080/oauth/logout", {
+        method: "GET",
+        credentials: "include",
+      });
+      localStorage.removeItem("jwt_token");
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout failed:", error);
+      localStorage.removeItem("jwt_token");
+      navigate("/login");
     }
-    >
-      <Typography>{title}</Typography>
-    </MenuItem>
-  );
-};
-
-// const Item2=()=>{
-//     return(
-//         <MenuItem disabled={true} background= {'$(colors.primary)'}></MenuItem>
-//     )
-// };
-
-const ThisProSidebar = () => {
-  // const theme = useTheme();
-  // const colors = tokens(theme.palette.mode);
-  const [isCollapsed, setIsCollapsed] = useState(false);
-  const [selected, setSelected] = useState("Dashboard");
-
-  useEffect(() => {
-    // Your side effect code goes here
-    console.log('Component did mount or update');
-
-    // Cleanup function (optional)
-    return () => {
-      console.log('Component will unmount or before next update');
-      // Perform cleanup here, such as clearing intervals or canceling network requests
-    };
-  }, []); // Dependency array (optional)
+  };
 
   return (
-    // https://github.com/azouaoui-med/react-pro-sidebar#readme
-    <Sidebar collapsed={isCollapsed} >
-      <SidebarHeader/>
-      <Menu iconShape="square" menuItemStyles={{
-      button: {
-        // the active class will be added automatically by react router
-        // so we can use it to style the active menu item
-        [`&.active`]: {
-          backgroundColor: '#003071',
-          color: '#b6c8d9',
-        },
-      },
-    }}>
-        <Box paddingLeft={isCollapsed ? undefined : "10%"}>
-          <Item 
-              title= {"Dashboard"}
-              to="../"
-              icon = {<HomeOutlinedIcon />}
-              selected= {selected}
-              setSelected= {setSelected} 
+    <div className="h-screen w-64 bg-gray-900 text-white flex flex-col justify-between py-6 px-4">
+      <div>
+        {/* 🧠 Logo */}
+        <div className="flex justify-center mb-4">
+          <img
+            src={haloLogo}
+            alt="Halo Harbor Logo"
+            className="w-36 h-auto object-contain"
           />
-          <Item
-              title={"Profile"}
-              to="../profile"
-              icon ={<PersonOutlinedIcon />}
-              selected={selected}
-              setSelected={setSelected}
-          />
-          <Item 
-              title={"Shared Data"}
-              to="/history"
-              icon ={<ChatBubbleOutlineOutlinedIcon />}
-              selected={selected}
-              setSelected={setSelected}
-          />
-          <Item 
-              title={"Connections"}
-              to="/connections"
-              icon ={<LanguageIcon />}
-              selected={selected}
-              setSelected={setSelected}
-          />
-          <Item 
-              title={"My Insights"}
-              to="/insights"
-              icon ={<DocumentScannerOutlinedIcon />}
-              selected={selected}
-              setSelected={setSelected}
-          />
-          <Item
-              title={"Data Plug"}
-              to="/oauth"
-              icon ={<DataObjectIcon />}
-              selected={selected}
-              setSelected={setSelected}
-          />
-          <Item 
-              title={"Help / About"}
-              to="/about"
-              // TODO do rounded question mark icon instead, like maybe with a circle around it.
-              icon ={<QuestionMarkOutlinedIcon />} 
-              selected={selected}
-              setSelected={setSelected}
-          />
-          
-          {/* <Item 
-              title={"Settings"}
-              to="../Profile"
-              icon ={<SettingsOutlinedIcon/>}
-              selected={selected}
-              setSelected={setSelected}
-          /> */}
-          {/* <MenuItem 
-              icon ={<LogoutOutlinedIcon />}                
-          ><Logout /></MenuItem> */}
-        </Box>
-      </Menu>
-    </Sidebar>
+        </div>
+
+        <h1 className="text-2xl font-extrabold text-white mb-8 text-center">
+          User Data Agent
+        </h1>
+
+        <nav className="flex flex-col space-y-2">
+          {menuItems.map((item) => (
+            <NavLink
+              key={item.title}
+              to={item.to}
+              className={({ isActive }) =>
+                `flex items-center px-4 py-2 rounded-lg transition-colors ${
+                  isActive
+                    ? "bg-blue-600 text-white"
+                    : "text-gray-300 hover:bg-gray-800 hover:text-white"
+                }`
+              }
+            >
+              <span className="mr-3">{item.icon}</span>
+              {item.title}
+            </NavLink>
+          ))}
+        </nav>
+      </div>
+
+      <div>
+        <button
+          onClick={handleLogout}
+          className="flex items-center px-4 py-2 text-red-400 hover:bg-gray-800 hover:text-red-500 rounded-lg transition-colors w-full"
+        >
+          <ExitToApp className="mr-3" />
+          Logout
+        </button>
+      </div>
+    </div>
   );
 };
 
-export default ThisProSidebar;
+export default SideBar;

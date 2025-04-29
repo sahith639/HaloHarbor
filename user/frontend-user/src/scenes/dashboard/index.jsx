@@ -1,125 +1,135 @@
-import React, { useEffect, useState} from 'react'
-import { Box, Stack } from '@mui/system'
-// import { useStateValue } from '../../state/state'
-import { useNavigate } from 'react-router-dom'
-import { Button, IconButton, Typography, useTheme } from "@mui/material";
-import SectionCard from '../../components/SectionCard';
-// import cachePull from '../../utils/cachePull'
-import { jwtDecode } from "jwt-decode";
+import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Database, Clock, Plug, Share } from 'lucide-react';
 
+const UserDashboard = () => {
+  const [stats, setStats] = useState({
+    connectedSources: [],
+    sharedTypes: [],
+  });
 
-const Dashboard = () => {
-    const theme = useTheme();
-    const colors = theme.palette;
-    // const [, dispatch] = useStateValue()
-    const navigate = useNavigate()
-    const [checkbox0, setCheckbox0] = useState(true);
-    const [checkbox1, setCheckbox1] = useState(true);
-    const [checkbox2, setCheckbox2] = useState(true);
-    const [userId, setUserId] = useState('');  // Store userId in the component's state
+  const navigate = useNavigate();
 
-    useEffect(() => {
-      // Get the JWT token from localStorage
-      const token = localStorage.getItem("jwt_token");
+  useEffect(() => {
+    const fetchUserStats = async () => {
+      try {
+        const token = localStorage.getItem("jwt_token");
+        const res = await fetch('http://localhost:9080/oauth/fetchCollections', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const data = await res.json();
 
-      // If token exists, decode it to get the userId
-      if (token) {
-        const decoded = jwtDecode(token);  // Decode the JWT token
-        setUserId(decoded.sub);  // Set the userId from the decoded token
-      } else {
-        toast.error("No token found. Please log in again.");
-      }
-    }, []);
-    
-    
-    const handleCheckboxChange = (checkboxName) => {
-      switch (checkboxName) {
-        case '0':
-          setCheckbox0(prevState => !prevState);
-          break;
-        case '1':
-          setCheckbox1(prevState => !prevState);
-          break;
-        case '2':
-          setCheckbox2(prevState => !prevState);
-          break;
-        default:
-          break;
-      }
-      const data = {
-        "0": checkboxName=="0"?!checkbox0:checkbox0,
-        "1": checkboxName=="1"?!checkbox1:checkbox1,
-        "2": checkboxName=="2"?!checkbox2:checkbox2
-      };
-      var url = 'http://host.docker.internal:9080/user-settings?userid=${userId}'
-      fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-      })
-      .then(response => {
-        if (!response.ok) {
-          throw new Error('Network response was not ok');
+        const connected = [];
+        const shared = [];
+
+        // Reddit
+        if (data.Reddit_Saved_Posts || data.Reddit_Up_Voted_Posts || data.Reddit_Doen_Voted_Posts) {
+          connected.push("Reddit");
+          if (data.Reddit_Saved_Posts) shared.push("Reddit Saved Posts");
+          if (data.Reddit_Up_Voted_Posts) shared.push("Reddit Upvoted Posts");
+          if (data.Reddit_Doen_Voted_Posts) shared.push("Reddit Downvoted Posts");
         }
-        return response.json();
-      })
-      .then(data => {
-        console.log('Success:', data);
-      })
-      .catch(error => {
-        console.error('Error:', error);
-      });
+
+        // Spotify
+        if (data.spotify_data_DataPlaylists || data.spotify_data_PlayListsSongs || data.spotify_data_TopArtists) {
+          connected.push("Spotify");
+          if (data.spotify_data_DataPlaylists) shared.push("Spotify Playlists");
+          if (data.spotify_data_PlayListsSongs) shared.push("Spotify Playlist Songs");
+          if (data.spotify_data_TopArtists) shared.push("Spotify Top Artists");
+        }
+
+        // Strava
+        if (data.athlete || data.athlete_clubs || data.athlete_activities) {
+          connected.push("Strava");
+          if (data.athlete) shared.push("Strava Athlete");
+          if (data.athlete_clubs) shared.push("Strava Athlete Clubs");
+          if (data.athlete_activities) shared.push("Strava Activities");
+        }
+
+        setStats({
+          connectedSources: connected,
+          sharedTypes: shared,
+        });
+      } catch (error) {
+        console.error('Failed to fetch user dashboard stats:', error);
+      }
     };
 
-    return (
-      <SectionCard>
-        <Typography variant="h3" sx={{ color: "#000000"}}>
-          Dashboard
-        </Typography>
-        <Typography variant="h5" sx={{ padding: "20px 30px 0 5px", color: "#000000"}}>
-          Text here
-          TODO have separate cards with simple fun insights maybe, like stress score and top played artist.
-          <div>
-            <h2>Data Sharing Setting:</h2>
-            <label>
-              <input
-                type="checkbox"
-                checked={checkbox0}
-                onChange={() => handleCheckboxChange('0')}
-              />
-              0
-            </label>
-            <br />
-            <label>
-              <input
-                type="checkbox"
-                checked={checkbox1}
-                onChange={() => handleCheckboxChange('1')}
-              />
-              1
-            </label>
-            <br />
-            <label>
-              <input
-                type="checkbox"
-                checked={checkbox2}
-                onChange={() => handleCheckboxChange('2')}
-              />
-              2
-            </label>
-            <br />
-          </div>
-        </Typography>
-      </SectionCard>
-    );
-}
+    fetchUserStats();
+  }, []);
 
-export default Dashboard
+  return (
+    <div className="p-6">
+      <h1 className="text-3xl font-bold text-white mb-2">Welcome to Your Dashboard</h1>
+      <p className="text-white mb-6">Here's an overview of your activity.</p>
 
-            {/* <Box height="250px">
-              <div style={{ paddingLeft:"50px", paddingRight:"10px", height:"300px", width:"300px"}}>
-                  <Donut />
-                </div>
-            </Box> */}
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <Card title="Connected Sources" value={stats.connectedSources.length} icon={Plug} />
+        <Card title="Last Shared" value={"N/A"} icon={Clock} />
+        <Card title="Shared Types" value={stats.sharedTypes.length} icon={Share} />
+        <Card title="Data Types" value={stats.sharedTypes.join(', ') || 'None'} icon={Database} />
+      </div>
+
+      {/* Source Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+        <SourceCard
+          title="Reddit"
+          description="Saved, Upvoted & Downvoted posts"
+          isConnected={stats.connectedSources.includes("Reddit")}
+        />
+        <SourceCard
+          title="Spotify"
+          description="Top Artists, Playlists, & Songs"
+          isConnected={stats.connectedSources.includes("Spotify")}
+        />
+        <SourceCard
+          title="Strava"
+          description="Athlete, Activities & Clubs"
+          isConnected={stats.connectedSources.includes("Strava")}
+        />
+      </div>
+
+      {/* Quick Actions */}
+      <div className="flex flex-wrap gap-4">
+        <button
+          onClick={() => navigate('/oauth')}
+          className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 px-4 rounded-xl transition"
+        >
+          🔌 Connect a Data Source
+        </button>
+
+        <button
+          onClick={() => navigate('/history')}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-xl transition"
+        >
+          📂 View Shared Data
+        </button>
+      </div>
+    </div>
+  );
+};
+
+const Card = ({ title, value, icon: Icon }) => (
+  <div className="bg-white p-5 rounded-2xl shadow-md hover:shadow-lg transition w-full">
+    <div className="flex items-center gap-3 mb-2">
+      {Icon && <Icon className="text-gray-700" size={20} />}
+      <span className="text-lg font-semibold text-black break-words">{value}</span>
+    </div>
+    <p className="text-sm text-gray-500">{title}</p>
+  </div>
+);
+
+const SourceCard = ({ title, description, isConnected }) => (
+  <div className="bg-white p-5 rounded-2xl shadow-md flex flex-col justify-between">
+    <div>
+      <h3 className="text-lg font-semibold text-black">{title}</h3>
+      <p className="text-sm text-gray-500">{description}</p>
+    </div>
+    <span className={`mt-2 text-sm font-medium ${isConnected ? 'text-green-600' : 'text-yellow-500'}`}>
+      {isConnected ? 'Connected' : 'Not Connected'}
+    </span>
+  </div>
+);
+
+export default UserDashboard;

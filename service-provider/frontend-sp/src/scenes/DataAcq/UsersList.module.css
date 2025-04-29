@@ -1,104 +1,127 @@
-/* UsersList.module.css */
-
-/* General container styles */
+/* Container with white card style */
 .container {
-    font-family: Arial, sans-serif;
+    font-family: 'Inter', sans-serif;
     margin: 0 auto;
-    padding: 20px;
-    max-width: 600px;
-    background-color: #f4f7fb;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-}
-
-/* Button styling */
-.button {
-    background-color: #007bff;
-    color: white;
-    padding: 10px 20px;
+    padding: 24px;
+    max-width: 800px;
+    background-color: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0px 8px 24px rgba(0, 0, 0, 0.08);
+  }
+  
+  /* Heading inside card */
+  .heading {
+    font-size: 24px;
+    font-weight: 600;
+    color: #000000;
+    margin-bottom: 16px;
+  }
+  
+  /* Subheading */
+  .subHeading {
+    font-size: 18px;
+    font-weight: 500;
+    color: #333333;
+    margin-bottom: 10px;
+  }
+  
+  /* Section separation */
+  .section {
+    margin-top: 20px;
+  }
+  
+  /* Standard primary button style */
+  .button {
+    background-color: #2563eb;
+    color: #ffffff;
+    padding: 10px 24px;
     border: none;
-    border-radius: 5px;
+    border-radius: 12px;
     cursor: pointer;
     font-size: 16px;
+    font-weight: 500;
     transition: background-color 0.3s ease;
-    margin-top: 10px;
-}
-
-.button:hover {
-    background-color: #0056b3;
-}
-
-.button:disabled {
-    background-color: #d6d8db;
-    cursor: not-allowed;
-}
-
-/* Styling for the select dropdown */
-.select {
-    width: 100%;
-    padding: 10px;
-    margin: 10px 0;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    font-size: 16px;
-}
-
-/* Styling for the checkboxes section */
-.heading {
-    margin-bottom: 15px;
-    color: #333;
-    font-size: 18px;
-}
-
-.label {
-    display: block;
-    margin-bottom: 10px;
-    font-size: 16px;
-}
-
-.checkbox {
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
     margin-right: 10px;
-}
-
-/* Styling for the fetched data display */
-.textarea {
+  }
+  
+  .button:hover {
+    background-color: #1d4ed8;
+  }
+  
+  .button:disabled {
+    background-color: #a5b4fc;
+    cursor: not-allowed;
+  }
+  
+  /* Select dropdown */
+  .select {
+    width: 100%;
+    padding: 12px;
+    margin: 12px 0;
+    border-radius: 10px;
+    border: 1px solid #cbd5e1;
+    font-size: 16px;
+    color: #111;
+    background-color: #f9fafb;
+  }
+  
+  /* Checkbox labels */
+  .label {
+    display: block;
+    font-size: 16px;
+    margin-bottom: 8px;
+    color: #111827;
+  }
+  
+  .checkbox {
+    margin-right: 8px;
+    accent-color: #2563eb;
+  }
+  
+  /* Text area for displaying data */
+  .textarea {
     width: 100%;
     height: 200px;
-    padding: 10px;
-    font-family: monospace;
-    border-radius: 5px;
-    border: 1px solid #ccc;
-    margin-top: 10px;
+    padding: 12px;
+    font-family: 'Courier New', monospace;
+    border-radius: 10px;
+    border: 1px solid #d1d5db;
+    background-color: #f9fafb;
+    margin-top: 12px;
     resize: vertical;
-}
-
-/* Styling for the ToastContainer */
-.Toastify__toast-container {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    z-index: 9999;
-}
-
-.loadingContainer {
+    color: #1f2937;
+  }
+  
+  /* Spinner loader */
+  .loadingContainer {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 20px;
-}
-
-.loadingSpinner {
+  }
+  
+  .loadingSpinner {
     border: 4px solid rgba(0, 0, 0, 0.1);
+    border-top: 4px solid #2563eb;
     border-radius: 50%;
-    border-top: 4px solid #3498db;
     width: 40px;
     height: 40px;
     animation: spin 1s linear infinite;
     margin-bottom: 10px;
-}
-
-@keyframes spin {
+  }
+  
+  @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
-}
+  }
+  
+  /* Toast notification */
+  .Toastify__toast-container {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    z-index: 9999;
+  }
+  

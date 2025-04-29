@@ -44,7 +44,6 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
-import io.vertx.ext.web.client.HttpResponse;
 
 
 public class ControllerVerticle extends AbstractVerticle {
@@ -64,6 +63,8 @@ public class ControllerVerticle extends AbstractVerticle {
     private String currentSPID;
     private Map<String, Object> resultDA =null;
     private Map<String, Object> resultUserControls =null;
+
+
 
     private Boolean isUsingCredentials;
 
@@ -93,7 +94,6 @@ public class ControllerVerticle extends AbstractVerticle {
         //BodyHandler bodyHandler = BodyHandler.create().setBodyLimit(-1);
 
         // BodyHandler bodyHandler = BodyHandler.create().setBodyLimit(300L * 1024 * 1024); // for 300MB
-
 
         router.route().handler(BodyHandler.create());
 
@@ -130,6 +130,8 @@ public class ControllerVerticle extends AbstractVerticle {
         router.get("/get-logs").handler(this::computeLogHandler);
         router.get("/getParticipantList").handler(this::participantListHandler);
 
+
+
         router.post("/webhook/topic/basicmessages").handler(this::BasicMessageHandler);
         router.post("/webhook/topic/connections").handler(this::connectionsUpdateHandler);
         router.post("/webhook/topic/out_of_band").handler(this::outOfBandHandler);
@@ -144,22 +146,7 @@ public class ControllerVerticle extends AbstractVerticle {
         router.get("/oauth/fetchUserList").handler(this::fetchUserControls);
         router.post("/oauth/fetchUserControlData").handler(this::GetUserControlData);
 
-        // router.delete("/participants/:participantId").handler(this::authenticateJwt).handler(this::deleteParticipant);
         router.delete("/participants/:participantId").handler(this::deleteParticipant);
-
-        // router.options("/participants/:participantId").handler(ctx -> {
-        //     ctx.response()
-        //         .putHeader("Access-Control-Allow-Origin", "*")
-        //         .putHeader("Access-Control-Allow-Methods", "DELETE, OPTIONS")
-        //         .putHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, userId")
-        //         .putHeader("Access-Control-Allow-Credentials", "true")
-        //         .setStatusCode(200)
-        //         .end();
-        // });
-        
-            // Set up HTTP endpoints
-            setupHttpEndpoints(router);
-        
 
 
         int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9081"));
@@ -178,17 +165,6 @@ public class ControllerVerticle extends AbstractVerticle {
         isUsingCredentials = !Boolean.parseBoolean(System.getenv().get("SKIP_VERIFICATION"));
         logger.info("Using credentials: " + isUsingCredentials);
     }
-
-    // private void setupHttpEndpoints(Router router) {
-    //     // HTTP endpoint for training
-    //     router.post("/api/http/train").handler(this::httpTrainHandler);
-        
-    //     // HTTP endpoint for receiving training responses
-    //     router.post("/api/http/train-response").handler(this::httpTrainResponseHandler);
-        
-    //     // HTTP endpoint for compute
-    //     router.post("/api/http/compute").handler(this::httpComputeHandler);
-    // }
 
     /// For the scenario of service provider we need to make sure that all the individual service providers have individual dbs
     /// But there has to be only one centralized sb for all the acoount managements
@@ -220,11 +196,13 @@ public class ControllerVerticle extends AbstractVerticle {
         }
     }
 
-    private void setupMiddleware(Router router) {
-        router.route().handler(BodyHandler.create());
-        router.route().handler(this::corsHandler);
-    }
-    private void corsHandler(RoutingContext ctx) {
+        private void setupMiddleware(Router router) {
+            router.route().handler(BodyHandler.create());
+            router.route().handler(this::corsHandler);
+        }
+
+
+           private void corsHandler(RoutingContext ctx) {
         ctx.response()
             .putHeader("Access-Control-Allow-Origin", "*")
             .putHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, DELETE, PATCH, PUT")
@@ -375,91 +353,39 @@ public class ControllerVerticle extends AbstractVerticle {
     }
 
 
-    // private void deleteParticipant(RoutingContext ctx) {
-    //     String participantId = ctx.pathParam("participantId");
-    //     logger.info("Received request to delete participant: {}", participantId);
-        
-    //     JsonObject query = new JsonObject().put("_id", participantId);
-        
-    //     mongoClient.removeDocument(PARTICIPANTS_COLLECTION, query)
-    //         .onSuccess(result -> {
-    //             if (result.getRemovedCount() > 0) {
-    //                 logger.info("Successfully deleted participant: {}", participantId);
-    //                 ctx.response()
-    //                     .putHeader("Access-Control-Allow-Origin", "*")
-    //                     .setStatusCode(200)
-    //                     .end(new JsonObject().put("success", true).encode());
-    //             } else {
-    //                 logger.warn("Participant not found: {}", participantId);
-    //                 ctx.response()
-    //                     .putHeader("Access-Control-Allow-Origin", "*")
-    //                     .setStatusCode(404)
-    //                     .end(new JsonObject().put("error", "Participant not found").encode());
-    //             }
-    //         })
-    //         .onFailure(err -> {
-    //             logger.error("Failed to delete participant: {}", err.getMessage());
-    //             ctx.response()
-    //                 .putHeader("Access-Control-Allow-Origin", "*")
-    //                 .setStatusCode(500)
-    //                 .end(new JsonObject().put("error", "Failed to delete participant: " + err.getMessage()).encode());
-    //         });
-    // }
 
     private void deleteParticipant(RoutingContext ctx) {
         String participantId = ctx.pathParam("participantId");
         logger.info("Received request to delete participant: {}", participantId);
         
-        // First, find the participant to get the invitation key
-        JsonObject findQuery = new JsonObject().put("_id", participantId);
-        mongoClient.findOne(PARTICIPANTS_COLLECTION, findQuery, null, findRes -> {
-            if (findRes.succeeded() && findRes.result() != null) {
-                JsonObject participant = findRes.result();
-                String invitationKey = participant.getString("invitationKey");
-                String connId = participant.getString("connId");
-                
-                // Delete the participant
-                mongoClient.removeDocument(PARTICIPANTS_COLLECTION, findQuery)
-                    .onSuccess(result -> {
-                        // Log success
-                        logger.info("Successfully deleted participant: {}", participantId);
-                        
-                        // Try to remove the Aries connection
-                        try {
-                            ariesClient.connectionsRemove(connId);
-                        } catch (IOException e) {
-                            logger.warn("Failed to remove Aries connection: {}", e.getMessage());
-                            // Continue even if connection removal fails
-                        }
-                        
-                        // Send successful response
-                        ctx.response()
-                            .putHeader("Access-Control-Allow-Origin", "*")
-                            .setStatusCode(200)
-                            .end(new JsonObject()
-                                .put("success", true)
-                                .put("invitationKey", invitationKey)
-                                .encode());
-                    })
-                    .onFailure(err -> {
-                        logger.error("Failed to delete participant: {}", err.getMessage());
-                        ctx.response()
-                            .putHeader("Access-Control-Allow-Origin", "*")
-                            .setStatusCode(500)
-                            .end(new JsonObject()
-                                .put("error", "Failed to delete participant: " + err.getMessage())
-                                .encode());
-                    });
-            } else {
+        JsonObject query = new JsonObject().put("_id", participantId);
+        
+        mongoClient.removeDocument(PARTICIPANTS_COLLECTION, query)
+            .onSuccess(result -> {
+                if (result.getRemovedCount() > 0) {
+                    logger.info("Successfully deleted participant: {}", participantId);
+                    ctx.response()
+                        .putHeader("Access-Control-Allow-Origin", "*")
+                        .setStatusCode(200)
+                        .end(new JsonObject().put("success", true).encode());
+                } else {
+                    logger.warn("Participant not found: {}", participantId);
+                    ctx.response()
+                        .putHeader("Access-Control-Allow-Origin", "*")
+                        .setStatusCode(404)
+                        .end(new JsonObject().put("error", "Participant not found").encode());
+                }
+            })
+            .onFailure(err -> {
+                logger.error("Failed to delete participant: {}", err.getMessage());
                 ctx.response()
                     .putHeader("Access-Control-Allow-Origin", "*")
-                    .setStatusCode(404)
-                    .end(new JsonObject()
-                        .put("error", "Participant not found")
-                        .encode());
-            }
-        });
+                    .setStatusCode(500)
+                    .end(new JsonObject().put("error", "Failed to delete participant: " + err.getMessage()).encode());
+            });
     }
+
+
     private void getCollectedData(RoutingContext ctx){
         JsonObject allQuery = new JsonObject();
         mongoClient.find(SHARED_DATA_ITEMS_COLLECTION, allQuery, h -> {
@@ -859,89 +785,44 @@ public class ControllerVerticle extends AbstractVerticle {
     /**
      * Adds a verified participant.
      */
-    // private Future<String> addParticipant(String userConnectionId) throws IOException {
-    //     var connectionOptional = ariesClient.connectionsGetById(userConnectionId);
-    //     var connection = connectionOptional.orElseThrow();
-    //     var invitationKey = connection.getInvitationKey();
-    //     addParticipantSPID = "";
-    //     Promise<String> promise = Promise.promise();
-    //     JsonObject document = new JsonObject()
-    //         .put("_id", userConnectionId)
-    //         .put("connId", userConnectionId)
-    //         .put("createdAt", Instant.now().getEpochSecond())
-    //         .put("invitationKey", invitationKey);
-        
-    //     FindSPID(invitationKey).onComplete(ar->{
-    //         if(ar.succeeded()){
-    //             String serviceProvID = ar.result();
-    //             addParticipantSPID = serviceProvID;
-    //             MongoClient mClient = createServiceProviderMongoClient(serviceProvID);
-    //             mClient.save(PARTICIPANTS_COLLECTION, document, h->{
-    //                 if(h.succeeded()){
-    //                     logger.info("added participant: " + userConnectionId+ "For sp "+ serviceProvID);
-    //                     mClient.close();
-    //                     promise.complete(addParticipantSPID);
-    //                 }
-    //                 else{
-    //                     logger.info("Failed to add participant "+h.cause());
-    //                     mClient.close();
-    //                     promise.fail(h.cause());
-    //                 }
-    //             });                
-    //         }
-    //         else{
-    //             logger.info("Promise failed"+ar.cause());
-    //             promise.fail(ar.cause());
-    //         }
-
-    //     });
-    //     return promise.future();    
-
-    // }
-
     private Future<String> addParticipant(String userConnectionId) throws IOException {
         var connectionOptional = ariesClient.connectionsGetById(userConnectionId);
         var connection = connectionOptional.orElseThrow();
         var invitationKey = connection.getInvitationKey();
         addParticipantSPID = "";
         Promise<String> promise = Promise.promise();
+        JsonObject document = new JsonObject()
+            .put("_id", userConnectionId)
+            .put("connId", userConnectionId)
+            .put("createdAt", Instant.now().getEpochSecond())
+            .put("invitationKey", invitationKey);
         
-        FindSPID(invitationKey).onComplete(ar -> {
+        FindSPID(invitationKey).onComplete(ar->{
             if(ar.succeeded()){
                 String serviceProvID = ar.result();
                 addParticipantSPID = serviceProvID;
                 MongoClient mClient = createServiceProviderMongoClient(serviceProvID);
-                
-                // Generate a username based on the connection ID if no other identification is available
-                String username = "User-" + userConnectionId.substring(0, 8);
-                
-                JsonObject document = new JsonObject()
-                    .put("_id", userConnectionId)
-                    .put("connId", userConnectionId)
-                    .put("createdAt", Instant.now().getEpochSecond())
-                    .put("invitationKey", invitationKey)
-                    .put("username", username);  // Add username field
-                
-                mClient.save(PARTICIPANTS_COLLECTION, document, h -> {
+                mClient.save(PARTICIPANTS_COLLECTION, document, h->{
                     if(h.succeeded()){
-                        logger.info("Added participant: " + username + " (" + userConnectionId + ") for SP " + serviceProvID);
+                        logger.info("added participant: " + userConnectionId+ "For sp "+ serviceProvID);
                         mClient.close();
                         promise.complete(addParticipantSPID);
                     }
                     else{
-                        logger.info("Failed to add participant " + h.cause());
+                        logger.info("Failed to add participant "+h.cause());
                         mClient.close();
                         promise.fail(h.cause());
                     }
                 });                
             }
             else{
-                logger.info("Promise failed " + ar.cause());
+                logger.info("Promise failed"+ar.cause());
                 promise.fail(ar.cause());
             }
+
         });
-        
         return promise.future();    
+
     }
 
     //used to find the service provider id from the inivitation key which is used to query the centralized invites database
@@ -1124,37 +1005,6 @@ public class ControllerVerticle extends AbstractVerticle {
     // }
 
 
-    // private void deleteInvitation(RoutingContext ctx) {
-    //     String invitationId = ctx.pathParam("invitationId");
-    //     JsonObject query = new JsonObject().put("_id", invitationId);
-        
-    //     Promise<Void> promise = Promise.promise();
-        
-    //     loginMongoClient.removeDocument("centralized_invitations", query, ar -> {
-    //         if (ar.succeeded()) {
-    //             // Continue with INVITATIONS_COLLECTION removal
-    //             mongoClient.removeDocument(INVITATIONS_COLLECTION, query, ar2 -> {
-    //                 if (ar2.succeeded()) {
-    //                     // Try to remove from PARTICIPANTS_COLLECTION
-    //                     mongoClient.removeDocument(PARTICIPANTS_COLLECTION, query, ar3 -> {
-    //                         // Regardless of participant removal result, proceed
-    //                         try {
-    //                             ariesClient.connectionsRemove(invitationId);
-    //                             ctx.response().setStatusCode(200).end();
-    //                         } catch (IOException e) {
-    //                             logger.error("Connection removal failed: " + e.getMessage());
-    //                             ctx.response().setStatusCode(500).end(e.getMessage());
-    //                         }
-    //                     });
-    //                 } else {
-    //                     ctx.response().setStatusCode(500).end(ar2.cause().getMessage());
-    //                 }
-    //             });
-    //         } else {
-    //             ctx.response().setStatusCode(500).end(ar.cause().getMessage());
-    //         }
-    //     });
-    // }
 
     private void deleteInvitation(RoutingContext ctx) {
         String invitationId = ctx.pathParam("invitationId");
@@ -1208,6 +1058,7 @@ public class ControllerVerticle extends AbstractVerticle {
             }
         });
     }
+
     private void createInvitation(RoutingContext ctx){
         try{
             String name = ctx.body().asJsonObject().getString("name");
@@ -1343,6 +1194,9 @@ public class ControllerVerticle extends AbstractVerticle {
     }
 
 
+
+
+
     private void computeHandler(RoutingContext ctx) {
             logger.info("handler1");
                 var jsonData = new JsonObject();
@@ -1367,349 +1221,101 @@ public class ControllerVerticle extends AbstractVerticle {
                         });
         }
 
-    
     private void participantListHandler(RoutingContext ctx) {
-        var query = new JsonObject();
-        logger.info("sadsadasdasda");
-        mongoClient.find(PARTICIPANTS_COLLECTION, query)
-                .onSuccess(participantResults -> {
-                    int counter = 0;
-                    JsonObject ids = new JsonObject();
-                    for(var participant : participantResults){
-                        ids.put(Integer.toString(counter),participant.getString("connId"));
-                        counter = counter + 1;
-                    }
-                    ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json")
-                    .end(ids.encode());
-            });
-                    
-    }
+         var query = new JsonObject();
+         logger.info("sadsadasdasda");
+         mongoClient.find(PARTICIPANTS_COLLECTION, query)
+                 .onSuccess(participantResults -> {
+                     int counter = 0;
+                     JsonObject ids = new JsonObject();
+                     for(var participant : participantResults){
+                         ids.put(Integer.toString(counter),participant.getString("connId"));
+                         counter = counter + 1;
+                     }
+                     ctx.response().setStatusCode(200).putHeader("Content-Type", "application/json")
+                     .end(ids.encode());
+             });
+                     
+     }
 
-    // private void trainHandler(RoutingContext ctx) {
-    // //     try{
-    // //        Optional<List<ConnectionRecord>> invitationsOptional = ariesClient.connections(ConnectionFilter.builder().state(ConnectionState.INVITATION).build());
-    // //        List<ConnectionRecord> invitations = invitationsOptional.orElse(List.of());
-
-    // //        JsonArray invitationsJson = new JsonArray();
-    // //        invitations.forEach(record -> {
-    // //            invitationsJson.add(new JsonObject().put("invKey", record.getInvitationKey()));
-    // //        });
-    // //    }
-    // //    catch(Exception e){
-    // //        ctx.response().setStatusCode(500).end();
-    // //    }
-    //  logger.info("training");
     
-    //     JsonObject jsonObject;
-    //     String client_id;
-    //         try {
-    //             jsonObject = ctx.getBodyAsJson();
-    //             client_id = jsonObject.getString("client_id");
-    //         } catch (DecodeException e) {
-    //             logger.error("Invalid JSON format");
-    //             return;
-    //         }
-    //         logger.info("forwarding to " + client_id);
-    //         final String[] divided = divideString(jsonObject);
-    //         logger.info(Integer.toString(divided[0].length()));
-    //         int length = jsonObject.encodePrettily().length();
-    //         final int pieces = length/350000; // Number of pieces to divide the string into
-    //         final int n = divided.length;
-    //         JsonObject data = (JsonObject) jsonObject.getJsonObject("data");
-
-    //         Thread thread = new Thread(() -> {
-    //             for (int i = 0; i < n; i++) {
-    //                 final String divided_str = divided[i];   
-    //                 logger.info("Sending CLient" + client_id + "Piece :" + Integer.toString(i));
-    //                 sendBasicMessage(client_id, "TRAIN", new JsonObject().put("client_id",client_id).put("id",i).put("total",pieces).put("value",divided_str), null);
-    //             }
-    //         });
-    //             thread.start();
-            
-    //     ctx.response().setStatusCode(200).end();
-    //     return;
-    // }
-
-    private void setupHttpEndpoints(Router router) {
-        // HTTP endpoint for training
-        router.post("/api/http/train").handler(this::httpTrainHandler);
-        
-        // HTTP endpoint for receiving training responses
-        router.post("/api/http/train-response").handler(this::httpTrainResponseHandler);
-        
-        // HTTP endpoint for compute
-        router.post("/api/http/compute").handler(this::httpComputeHandler);
-        
-        // Other HTTP endpoints as needed
-    }
-    
-    // HTTP based training handler
-private void httpTrainHandler(RoutingContext ctx) {
-    logger.info("HTTP training initiated");
-    
-    try {
-        JsonObject jsonObject = ctx.getBodyAsJson();
-        List<String> participantIds = jsonObject.getJsonArray("participantIds").getList();
-        JsonObject trainingData = jsonObject.getJsonObject("trainingData");
-        
-        if (participantIds == null || participantIds.isEmpty() || trainingData == null) {
-            ctx.response().setStatusCode(400).end("Missing participant IDs or training data");
-            return;
-        }
-        
-        // Process each participant
-        for (String participantId : participantIds) {
-            // Send HTTP request to participant
-            WebClient client = WebClient.create(vertx);
-            String participantEndpoint = "http://" + participantId + "/api/http/train";
-            
-            client.postAbs(participantEndpoint)
-                .sendJsonObject(trainingData, ar -> {
-                    if (ar.succeeded()) {
-                        logger.info("HTTP training request sent to participant: " + participantId);
-                    } else {
-                        logger.error("Failed to send HTTP training request to participant: " + participantId);
-                    }
-                });
-        }
-        
-        ctx.response().setStatusCode(200).end("HTTP training requests sent to " + participantIds.size() + " participants");
-    } catch (Exception e) {
-        logger.error("Error in HTTP train handler: " + e.getMessage());
-        ctx.response().setStatusCode(500).end("Internal server error");
-    }
-}
-
-// HTTP based training response handler
-private void httpTrainResponseHandler(RoutingContext ctx) {
-    logger.info("HTTP training response received");
-    
-    try {
-        JsonObject response = ctx.getBodyAsJson();
-        String participantId = response.getString("participantId");
-        String username = response.getString("username", "Unknown User");
-        JsonObject results = response.getJsonObject("results");
-        
-        // Process the training results
-        logger.info("Received HTTP training results from: " + username + " (" + participantId + ")");
-        
-        // Add to log or database as needed
-        computationLog.put(username, results);
-        
-        ctx.response().setStatusCode(200).end("Training results received");
-    } catch (Exception e) {
-        logger.error("Error in HTTP train response handler: " + e.getMessage());
-        ctx.response().setStatusCode(500).end("Internal server error");
-    }
-}
-
-// HTTP based compute handler
-private void httpComputeHandler(RoutingContext ctx) {
-    logger.info("HTTP compute initiated");
-    
-    try {
-        JsonObject request = ctx.getBodyAsJson();
-        String participantId = request.getString("participantId");
-        JsonObject computeData = request.getJsonObject("computeData");
-        
-        // Send HTTP compute request to participant
-        WebClient client = WebClient.create(vertx);
-        String participantEndpoint = "http://" + participantId + "/api/http/compute";
-        
-        client.postAbs(participantEndpoint)
-            .sendJsonObject(computeData, ar -> {
-                if (ar.succeeded()) {
-                    HttpResponse<Buffer> response = ar.result();
-                    JsonObject computeResults = response.bodyAsJsonObject();
-                    
-                    // Process compute results
-                    ctx.response().setStatusCode(200).end(computeResults.encode());
-                } else {
-                    logger.error("Failed to send HTTP compute request: " + ar.cause().getMessage());
-                    ctx.response().setStatusCode(500).end("Failed to compute");
-                }
-            });
-    } catch (Exception e) {
-        logger.error("Error in HTTP compute handler: " + e.getMessage());
-        ctx.response().setStatusCode(500).end("Internal server error");
-    }
-}
-
-    // private void trainHandler(RoutingContext ctx) {
-    //     logger.info("Starting training for all participants");
-        
-    //     JsonObject jsonObject;
-    //     try {
-    //         jsonObject = ctx.getBodyAsJson();
-    //     } catch (DecodeException e) {
-    //         logger.error("Invalid JSON format");
-    //         ctx.response().setStatusCode(400).end("Invalid JSON format");
-    //         return;
-    //     }
-        
-    //     // Get all participants
-    //     mongoClient.find(PARTICIPANTS_COLLECTION, new JsonObject())
-    //         .onSuccess(participants -> {
-    //             if (participants.isEmpty()) {
-    //                 logger.info("No participants found for training");
-    //                 ctx.response().setStatusCode(200).end("No participants available for training");
-    //                 return;
-    //             }
-                
-    //             final String[] divided = divideString(jsonObject);
-    //             int length = jsonObject.encodePrettily().length();
-    //             final int pieces = Math.max(1, length/350000);
-    //             final int n = divided.length;
-                
-    //             // For each participant
-    //             for (JsonObject participant : participants) {
-    //                 String participantId = participant.getString("connId");
-    //                 // Fetch username if available, otherwise use ID
-    //                 String username = participant.getString("username", "User-" + participantId.substring(0, 8));
-                    
-    //                 // Create a separate thread for each participant
-    //                 Thread thread = new Thread(() -> {
-    //                     for (int i = 0; i < n; i++) {
-    //                         final String divided_str = divided[i];   
-    //                         logger.info("Sending to " + username + " (" + participantId + ") Piece: " + i);
-    //                         sendBasicMessage(participantId, "TRAIN", 
-    //                             new JsonObject()
-    //                                 .put("client_id", participantId)
-    //                                 .put("username", username)
-    //                                 .put("id", i)
-    //                                 .put("total", pieces)
-    //                                 .put("value", divided_str), 
-    //                             null);
-    //                     }
-    //                 });
-    //                 thread.start();
-    //             }
-                
-    //             ctx.response().setStatusCode(200).end("Training initiated for " + participants.size() + " participants");
-    //         })
-    //         .onFailure(err -> {
-    //             logger.error("Failed to fetch participants: " + err.getMessage());
-    //             ctx.response().setStatusCode(500).end("Failed to fetch participants");
-    //         });
-    // }
-
-
-    // private void trainHandler(RoutingContext ctx) {
-    //     logger.info("training");
-        
-    //     JsonObject jsonObject;
-    //     try {
-    //         jsonObject = ctx.getBodyAsJson();
-    //     } catch (DecodeException e) {
-    //         logger.error("Invalid JSON format");
-    //         return;
-    //     }
-        
-    //     // Fetch all participants
-    //     mongoClient.find(PARTICIPANTS_COLLECTION, new JsonObject())
-    //         .onSuccess(participants -> {
-    //             if (participants.isEmpty()) {
-    //                 ctx.response().setStatusCode(200).end("No participants available for training");
-    //                 return;
-    //             }
-                
-    //             final String[] divided = divideString(jsonObject);
-    //             int length = jsonObject.encodePrettily().length();
-    //             final int pieces = Math.max(1, length/350000);
-    //             final int n = divided.length;
-                
-    //             computationLog = new JsonObject(); // Reset computation log for new training session
-                
-    //             // For each participant
-    //             for (JsonObject participant : participants) {
-    //                 String participantId = participant.getString("connId");
-    //                 // Get username or use ID fragment if not available
-    //                 String username = participant.getString("username", "User-" + participantId.substring(0, 8));
-                    
-    //                 Thread thread = new Thread(() -> {
-    //                     logger.info("Starting training for: " + username + " (" + participantId + ")");
-    //                     for (int i = 0; i < n; i++) {
-    //                         final String divided_str = divided[i];
-    //                         sendBasicMessage(participantId, "TRAIN", 
-    //                             new JsonObject()
-    //                                 .put("client_id", participantId)
-    //                                 .put("username", username)
-    //                                 .put("id", i)
-    //                                 .put("total", pieces)
-    //                                 .put("value", divided_str),
-    //                             null);
-    //                     }
-    //                 });
-    //                 thread.start();
-    //             }
-                
-    //             ctx.response().setStatusCode(200).end();
-    //         })
-    //         .onFailure(err -> {
-    //             logger.error("Failed to fetch participants: " + err.getMessage());
-    //             ctx.response().setStatusCode(500).end();
-    //         });
-    // }
-
-
     private void trainHandler(RoutingContext ctx) {
-        logger.info("Starting training for all participants");
-        
-        JsonObject jsonObject;
-        try {
-            jsonObject = ctx.getBodyAsJson();
-        } catch (DecodeException e) {
-            logger.error("Invalid JSON format");
-            ctx.response().setStatusCode(400).end("Invalid JSON format");
-            return;
-        }
-        
-        // Get all participants
-        mongoClient.find(PARTICIPANTS_COLLECTION, new JsonObject())
-            .onSuccess(participants -> {
-                if (participants.isEmpty()) {
-                    logger.info("No participants found for training");
-                    ctx.response().setStatusCode(200).end("No participants available for training");
-                    return;
-                }
-                
-                final String[] divided = divideString(jsonObject);
-                int length = jsonObject.encodePrettily().length();
-                final int pieces = Math.max(1, length/350000);
-                
-                // For each participant
-                for (JsonObject participant : participants) {
-                    String participantId = participant.getString("connId");
-                    // Fetch username if available, otherwise use ID
-                    String username = participant.getString("username", "User-" + participantId.substring(0, 8));
-                    
-                    logger.info("Sending training request to: " + username + " (" + participantId + ")");
-                    
-                    // Start a separate thread for each participant
-                    Thread thread = new Thread(() -> {
-                        for (int i = 0; i < divided.length; i++) {
-                            final String divided_str = divided[i];   
-                            sendBasicMessage(participantId, "TRAIN", 
-                                new JsonObject()
-                                    .put("client_id", participantId)
-                                    .put("username", username)
-                                    .put("id", i)
-                                    .put("total", divided.length)
-                                    .put("value", divided_str), 
-                                null);
-                        }
-                    });
-                    thread.start();
-                }
-                
-                ctx.response().setStatusCode(200).end("Training initiated for " + participants.size() + " participants");
-            })
-            .onFailure(err -> {
-                logger.error("Failed to fetch participants: " + err.getMessage());
-                ctx.response().setStatusCode(500).end("Failed to fetch participants");
-            });
-    }
+    //     try{
+    //        Optional<List<ConnectionRecord>> invitationsOptional = ariesClient.connections(ConnectionFilter.builder().state(ConnectionState.INVITATION).build());
+    //        List<ConnectionRecord> invitations = invitationsOptional.orElse(List.of());
 
+    //        JsonArray invitationsJson = new JsonArray();
+    //        invitations.forEach(record -> {
+    //            invitationsJson.add(new JsonObject().put("invKey", record.getInvitationKey()));
+    //        });
+    //    }
+    //    catch(Exception e){
+    //        ctx.response().setStatusCode(500).end();
+    //    }
+    // logger.info("handler");
+    logger.info("training");
+
+        JsonObject jsonObject;
+        String client_id;
+            try {
+                jsonObject = ctx.getBodyAsJson();
+                // String jsonString = jsonObject.encodePrettily();  // Or use .encode() for compact format
+                //   // Attempt to parse JSON
+                // logger.info(Integer.toString(jsonString.length()));
+                client_id = jsonObject.getString("client_id");
+            } catch (DecodeException e) {
+                logger.error("Invalid JSON format");
+                return;
+            }
+    //  logger.info("handler1");
+    //         var query = new JsonObject();
+    //         mongoClient.find(PARTICIPANTS_COLLECTION, query)
+    //                 .onSuccess(participantResults -> {
+    //                     if (participantResults.size() > 0){
+    //                         for(var participant : participantResults){
+    //                             final var connId = participant.getString("connId");
+    //                             final String[] divided = divideString(jsonObject.encode());
+    //                             logger.info(Integer.toString(divided[0].length()));
+    //                             int length = jsonObject.encodePrettily().length();
+    //                             final int pieces = length/350000; // Number of pieces to divide the string into
+    //                             final int n = divided.length;
+    //                             JsonObject data = (JsonObject) jsonObject.getJsonObject("data");
+
+    //                             Thread thread = new Thread(() -> {
+    //                                 for (int i = 0; i < n; i++) {
+    //                                     final String divided_str = divided[i];   
+    //                                     logger.info("CLient" + data.getString("client_id") + "Piece :" + Integer.toString(i));
+    //                                     sendBasicMessage(connId, "TRAIN", new JsonObject().put("client_id",connId).put("id",i).put("total",pieces).put("value",divided_str), null);
+                                
+    //                                 }
+    //                             });
+    //                                 thread.start();
+    //                         }
+    //                     }
+    //                     else{
+    //                         logger.warn("User entry doesn't exist (e.g., the user might not have verified) - rejecting shared data.");
+    //                     }
+    //                 });
+
+    logger.info("forwarding to " + client_id);
+             final String[] divided = divideString(jsonObject);
+             logger.info(Integer.toString(divided[0].length()));
+             int length = jsonObject.encodePrettily().length();
+             final int pieces = length/350000; // Number of pieces to divide the string into
+             final int n = divided.length;
+             JsonObject data = (JsonObject) jsonObject.getJsonObject("data");
+ 
+             Thread thread = new Thread(() -> {
+                 for (int i = 0; i < n; i++) {
+                     final String divided_str = divided[i];   
+                     logger.info("Sending CLient" + client_id + "Piece :" + Integer.toString(i));
+                     sendBasicMessage(client_id, "TRAIN", new JsonObject().put("client_id",client_id).put("id",i).put("total",pieces).put("value",divided_str), null);
+                 }
+             });
+                 thread.start();
+        ctx.response().setStatusCode(200).end();
+        return;
+    }
 
 //    private void sendMessageToConnection(JsonObject jsonData, String connId){
 //        // Build the ACA-Py Basic Message to send:
@@ -1734,8 +1340,9 @@ private void httpComputeHandler(RoutingContext ctx) {
                 return promise.future();
             });
     }
-    public  String[] divideString(JsonObject inputObject) {
-        String input = inputObject.encode();
+    //public  String[] divideString(String input) {
+      public  String[] divideString(JsonObject inputObject) {
+         String input = inputObject.encode();
         // Check if input string is null or empty
         if (input == null || input.isEmpty()) {
             return new String[0];
@@ -1862,113 +1469,52 @@ private void httpComputeHandler(RoutingContext ctx) {
                 JsonArray payloadData = basicMessagePackage.getJsonArray("payload");
                 saveSharedData(connId, payloadData, messageId);
                 break;
-            // case "TRAIN_RESPONSE":
-            //     {
-            //         JsonObject payloadResponseData = (JsonObject)basicMessagePackage.getJsonObject("payload");
-            //         int id = payloadResponseData.getInteger("id");
-            //         String client_id = payloadResponseData.getString("client_id");
-            //         logger.info("Client ID : "+client_id+"Received segment ID: " + id);
-            // case "TRAIN_RESPONSE":
-            //     {
-            //         JsonObject payloadResponseData = (JsonObject)basicMessagePackage.getJsonObject("payload");
-            //         int id = payloadResponseData.getInteger("id");
-            //         String client_id = payloadResponseData.getString("client_id");
-            //         String username = payloadResponseData.getString("username", "Unknown User");
-            //         logger.info("User: " + username + " (Client ID: "+client_id+") Received segment ID: " + id);
-            //                         int total = payloadResponseData.getInteger("total");
-            //                         String content = payloadResponseData.getString("value");
+            case "TRAIN_RESPONSE":
+                {
+                    JsonObject payloadResponseData = (JsonObject)basicMessagePackage.getJsonObject("payload");
+                    int id = payloadResponseData.getInteger("id");
+                    //logger.info("Received segment ID: " + id);
 
-            //         // Get or create a map for storing segments for this specific connection
-            //         ConcurrentHashMap<Integer, String> segments = dataParts.computeIfAbsent(connId, k -> new ConcurrentHashMap<>());
+                    String client_id = payloadResponseData.getString("client_id");
+                     logger.info("Client ID : "+client_id+"Received segment ID: " + id);
+
+                    int total = payloadResponseData.getInteger("total");
+                    String content = payloadResponseData.getString("value");
+
+                    // Get or create a map for storing segments for this specific connection
+                    ConcurrentHashMap<Integer, String> segments = dataParts.computeIfAbsent(connId, k -> new ConcurrentHashMap<>());
                     
-            //         // Store the current segment
-            //         segments.put(id, content);
+                    // Store the current segment
+                    segments.put(id, content);
 
-            //         // Check if all segments from 0 to total-1 are present
-            //         // if (segments.size() == total && segments.keySet().stream().sorted().reduce((a, b) -> a + 1 == b ? b : -1).orElse(-1) + 1 == total) {
-            //         // When sending to server, include username
-            //         if (segments.size() == total && segments.keySet().stream().sorted().reduce((a, b) -> a + 1 == b ? b : -1).orElse(-1) + 1 == total) {
-            //             StringBuilder fullContent = new StringBuilder();
-            //             for (int i = 0; i < total; i++) {
-            //                 fullContent.append(segments.get(i));
-            //             }
-            //             // Log completion
-            //             logger.info("Received all segments from " + username);
-
-            //             // Log that we are sending the complete payload
-            //             logger.info("Sending full payload");
-            //             logger.info(fullContent.toString());
-            //             // JsonObject completeData = new JsonObject().put("completeData", fullContent.toString()).put("client_id", client_id);
+                    // Check if all segments from 0 to total-1 are present
+                    if (segments.size() == total && segments.keySet().stream().sorted().reduce((a, b) -> a + 1 == b ? b : -1).orElse(-1) + 1 == total) {
+                        StringBuilder fullContent = new StringBuilder();
+                        for (int i = 0; i < total; i++) {
+                            fullContent.append(segments.get(i));
+                        }
                         
-            //             // Include username in the response
-            //             JsonObject completeData = new JsonObject()
-            //             .put("completeData", fullContent.toString())
-            //             .put("client_id", client_id)
-            //             .put("username", username);
+                        // Log that we are sending the complete payload
+                        logger.info("Sending full payload");
+                        //JsonObject completeData = new JsonObject().put("completeData", fullContent.toString());
 
-            //             WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
-            //             webClient.post(4500, "flserver", "/response") 
-            //                 .sendJsonObject(completeData)
-            //                 .onSuccess(res -> logger.info("Payload sent successfully"))
-            //                 .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
+                        logger.info(fullContent.toString());
+                         JsonObject completeData = new JsonObject().put("completeData", fullContent.toString()).put("client_id", client_id);
+                        WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
+                        webClient.post(4500, "flserver", "/response") 
+                            .sendJsonObject(completeData)
+                            .onSuccess(res -> logger.info("Payload sent successfully"))
+                            .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
 
-            //             // Clear the segments map for this connection to free up memory
-            //             dataParts.remove(connId);
-            //         } else {
-            //             // Log waiting for more segments
-            //             logger.info("Waiting for more segments. Current count: " + segments.size() + "/" + total);
-            //         }
-            //     }
-                
-            //     break;
-
-            case "TRAIN_RESPONSE": {
-                JsonObject payloadResponseData = basicMessagePackage.getJsonObject("payload");
-                int id = payloadResponseData.getInteger("id");
-                String client_id = payloadResponseData.getString("client_id");
-                String username = payloadResponseData.getString("username", "Unknown User");
-                int total = payloadResponseData.getInteger("total");
-                String content = payloadResponseData.getString("value");
-                
-                logger.info("User: " + username + " (Client ID: " + client_id + ") Received segment ID: " + id);
-            
-                // Get or create a map for storing segments for this specific connection
-                ConcurrentHashMap<Integer, String> segments = dataParts.computeIfAbsent(connId, k -> new ConcurrentHashMap<>());
-                
-                // Store the current segment
-                segments.put(id, content);
-            
-                // Check if all segments from 0 to total-1 are present
-                if (segments.size() == total && segments.keySet().stream().sorted().reduce((a, b) -> a + 1 == b ? b : -1).orElse(-1) + 1 == total) {
-                    StringBuilder fullContent = new StringBuilder();
-                    for (int i = 0; i < total; i++) {
-                        fullContent.append(segments.get(i));
+                        // Clear the segments map for this connection to free up memory
+                        dataParts.remove(connId);
+                    } else {
+                        // Log waiting for more segments
+                        logger.info("Waiting for more segments. Current count: " + segments.size() + "/" + total);
                     }
-                    
-                    // Log that we are sending the complete payload
-                    logger.info("Received all segments from " + username);
-                    
-                    // Include username in the response
-                    JsonObject completeData = new JsonObject()
-                        .put("completeData", fullContent.toString())
-                        .put("client_id", client_id)
-                        .put("username", username);
-                    
-                    WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
-                    webClient.post(4500, "flserver", "/response") 
-                        .sendJsonObject(completeData)
-                        .onSuccess(res -> logger.info("Payload sent successfully from " + username))
-                        .onFailure(err -> logger.error("Failed to send payload from " + username + ": " + err.getMessage()));
-            
-                    // Clear the segments map for this connection to free up memory
-                    dataParts.remove(connId);
-                } else {
-                    // Log waiting for more segments
-                    logger.info("Waiting for more segments from " + username + ". Current count: " + segments.size() + "/" + total);
                 }
+                
                 break;
-            }
-
             case "COMPUTE_RESPONSE":
                 {
 
@@ -1989,9 +1535,6 @@ private void httpComputeHandler(RoutingContext ctx) {
         }
 
         webhookCtx.response().setStatusCode(200).end();
-
-        // Add this method to ControllerVerticle_SP.java
-
 
 //        String stress_score_date_timestamp = pushed_data.getJsonObject("stress-score-data").getString("timestamp");
 //

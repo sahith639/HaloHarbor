@@ -67,6 +67,10 @@ import java.util.stream.Collectors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import io.vertx.ext.web.handler.CorsHandler;
+import io.vertx.core.http.HttpMethod;
+
+
 
 
 
@@ -133,8 +137,6 @@ public class ControllerVerticle extends AbstractVerticle {
     private Map<String, Object> resultDA =null;
 
 
-
-    
   Random random = new Random();
 
   public ControllerVerticle(MongoClient mongoClient, AriesClient ariesClient,
@@ -150,22 +152,36 @@ public class ControllerVerticle extends AbstractVerticle {
   @Override
   public void start(Promise<Void> promise) {
     Router router = Router.router(vertx);
-    
       webClient = WebClient.create(vertx);
-//    router.route().handler(CorsHandler.create("*")
-//        .allowedMethod(HttpMethod.GET)
-//        .allowedMethod(HttpMethod.POST)
-//        .allowedMethod(HttpMethod.OPTIONS)
-//        .allowedMethod(HttpMethod.DELETE)
-//        .allowedMethod(HttpMethod.PATCH)
-//        .allowedMethod(HttpMethod.PUT)
-//        .allowCredentials(true)
-//        .allowedHeader("Access-Control-Allow-Headers")
-//        .allowedHeader("Authorization")
-//        .allowedHeader("Access-Control-Allow-Method")
-//        .allowedHeader("Access-Control-Allow-Origin")
-//        .allowedHeader("Access-Control-Allow-Credentials")
-//        .allowedHeader("Content-Type"));
+  //  router.route().handler(CorsHandler.create("*")
+  //      .allowedMethod(HttpMethod.GET)
+  //      .allowedMethod(HttpMethod.POST)
+  //      .allowedMethod(HttpMethod.OPTIONS)
+  //      .allowedMethod(HttpMethod.DELETE)
+  //      .allowedMethod(HttpMethod.PATCH)
+  //      .allowedMethod(HttpMethod.PUT)
+  //      .allowCredentials(true)
+  //      .allowedHeader("Access-Control-Allow-Headers")
+  //      .allowedHeader("Authorization")
+  //      .allowedHeader("Access-Control-Allow-Method")
+  //      .allowedHeader("Access-Control-Allow-Origin")
+  //      .allowedHeader("Access-Control-Allow-Credentials")
+  //      .allowedHeader("Content-Type"));
+router.route().handler(CorsHandler.create("*")
+    .allowedMethod(HttpMethod.GET)
+    .allowedMethod(HttpMethod.POST)
+    .allowedMethod(HttpMethod.OPTIONS)
+    .allowedMethod(HttpMethod.DELETE)
+    .allowedMethod(HttpMethod.PATCH)
+    .allowedMethod(HttpMethod.PUT)
+    .allowedHeader("Access-Control-Allow-Headers")
+    .allowedHeader("Authorization")
+    .allowedHeader("Access-Control-Allow-Method")
+    .allowedHeader("Access-Control-Allow-Origin")
+    .allowedHeader("Access-Control-Allow-Credentials")
+    .allowedHeader("Content-Type"));
+
+
 
 //Testing the mongodbConnection
   oauthMongoClient = MongoClient.createShared(vertx, new JsonObject()
@@ -184,8 +200,6 @@ public class ControllerVerticle extends AbstractVerticle {
         ctx.next();
       }
     });
-
-    setupHttpEndpoints(router);
 
 
     // TODO Refactor split up into multiple handler files.
@@ -229,7 +243,10 @@ public class ControllerVerticle extends AbstractVerticle {
 
     router.post("/get-data").handler(new GetDataHandler(dataService));
 
-    router.get("/shared-data").handler(this::getCollectedData);
+    //router.get("/shared-data").handler(this::getCollectedData);
+    router.get("/shared-data")
+  .handler(this::authenticateJwt)
+  .handler(this::getCollectedData);
 
     router.post("/train-response").handler(this::trainResponseHandler);
     router.post("/user-settings").handler(this::userSettingsHandler);
@@ -279,11 +296,12 @@ public class ControllerVerticle extends AbstractVerticle {
       router.post("/oauth/saveUserDataSettings").handler(this::updateUserControlSettings);
       router.get("/oauth/fetchCollections").handler(this::getCollections);
       router.get("/oauth/getDAData").handler(this::getDAData);
+
       router.get("/oauth/strava/getActivities").handler(this::getUserActivities);
       router.get("/oauth/strava/athlete").handler(this::getAthlete);
       router.get("/oauth/strava/athleteClubs").handler(this::getAthleteClubs);
 
-
+    //userSettings = new JsonObject().put("0",true).put("1",true).put("2",true);
     userSettings = new JsonObject().put("129b5297-e2af-4f87-a566-8c05422bb769",true).put("4d8c4a06-93cc-4d4c-a853-0d6463a29d77",true);
     int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9080"));
     vertx.createHttpServer()
@@ -297,73 +315,6 @@ public class ControllerVerticle extends AbstractVerticle {
         .onFailure(promise::fail);
   }
 
-  // Add this method to ControllerVerticle_User.java
-private void setupHttpEndpoints(Router router) {
-  // HTTP endpoint for receiving training requests
-  router.post("/api/http/train").handler(this::httpTrainHandler);
-  
-  // HTTP endpoint for receiving compute requests
-  router.post("/api/http/compute").handler(this::httpComputeHandler);
-  
-  // Other HTTP endpoints as needed
-}
-
-// HTTP based training handler
-private void httpTrainHandler(RoutingContext ctx) {
-  logger.info("HTTP training request received");
-  
-  try {
-      JsonObject trainingData = ctx.getBodyAsJson();
-      String client_id = trainingData.getString("client_id", currentUserId);
-      int epochs = trainingData.getInteger("epochs", 3);
-      
-      // Store the training data
-      Buffer fileContent = Buffer.buffer(trainingData.getString("value", "").getBytes(StandardCharsets.ISO_8859_1));
-      vertx.fileSystem().writeFileBlocking("global_update.pkl", fileContent);
-      
-      // Instead of calling trainClient, directly create the response
-      // This simulates the training process for testing purposes
-      logger.info("Processing training data for client: " + client_id);
-      
-      // Send response back to service provider
-      WebClient client = WebClient.create(vertx);
-      String spEndpoint = "http://host.docker.internal:9081/api/http/train-response";
-      
-      JsonObject response = new JsonObject()
-          .put("participantId", currentUserId)
-          .put("username", currentUserId)
-          .put("results", new JsonObject().put("status", "success"));
-      
-      client.postAbs(spEndpoint)
-          .sendJsonObject(response)
-          .onSuccess(res -> logger.info("Training response sent successfully"))
-          .onFailure(err -> logger.error("Failed to send training response: " + err.getMessage()));
-      
-      ctx.response().setStatusCode(200).end("Training request processed");
-  } catch (Exception e) {
-      logger.error("Error in HTTP train handler: " + e.getMessage());
-      ctx.response().setStatusCode(500).end("Internal server error");
-  }
-}
-
-// HTTP based compute handler
-private void httpComputeHandler(RoutingContext ctx) {
-  logger.info("HTTP compute request received");
-  
-  try {
-      JsonObject computeData = ctx.getBodyAsJson();
-      
-      // Process computation
-      // This would depend on your specific computation logic
-      JsonObject result = new JsonObject().put("result", "Computed data");
-      
-      ctx.response().setStatusCode(200).end(result.encode());
-  } catch (Exception e) {
-      logger.error("Error in HTTP compute handler: " + e.getMessage());
-      ctx.response().setStatusCode(500).end("Internal server error");
-  }
-}
-
     private void redirectToStrava(RoutingContext ctx) {
         String url = stravaAuthUrl + "?client_id=" + stravaClientId +
                 "&response_type=code" +
@@ -374,7 +325,6 @@ private void httpComputeHandler(RoutingContext ctx) {
         ctx.response().setStatusCode(302).putHeader("Location", url).end();
     }
 
-    
 
     private void getStravaToken(RoutingContext ctx) {
         String code = ctx.request().getParam("code");
@@ -408,21 +358,8 @@ private void httpComputeHandler(RoutingContext ctx) {
                 });
     }
 
-    private void corsHandler(RoutingContext ctx) {
-      ctx.response()
-          .putHeader("Access-Control-Allow-Origin", "*") // Or specific origin
-          .putHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS, DELETE")
-          .putHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
-          .putHeader("Access-Control-Allow-Credentials", "true");
-  
-      if (ctx.request().method() == HttpMethod.OPTIONS) {
-          ctx.response().setStatusCode(200).end();
-      } else {
-          ctx.next();
-      }
-  }
 
-    private void getAthleteClubs(RoutingContext ctx) {
+         private void getAthleteClubs(RoutingContext ctx) {
         if (stravaAccessToken == null) {
             ctx.response()
                     .setStatusCode(401)
@@ -585,8 +522,8 @@ private void httpComputeHandler(RoutingContext ctx) {
                     }
                 });
     }
-
-    private void getUserActivities(RoutingContext ctx) {
+ 
+     private void getUserActivities(RoutingContext ctx) {
         if (stravaAccessToken == null) {
             ctx.response()
                     .setStatusCode(401)
@@ -675,22 +612,7 @@ private void httpComputeHandler(RoutingContext ctx) {
                 });
     }
 
-//    private void sendResponse(RoutingContext ctx, boolean hasError) {
-//        if (!hasError) {
-//            ctx.response()
-//                    .putHeader("Content-Type", "application/json")
-//                    .end(new JsonObject()
-//                            .put("status", "Success")
-//                            .put("message", "Activities data processed successfully")
-//                            .encode());
-//        } else {
-//            ctx.response()
-//                    .setStatusCode(500)
-//                    .end(new JsonObject()
-//                            .put("error", "Error processing some activities data")
-//                            .encode());
-//        }
-//    }
+
 
     private void redirectToReddit(RoutingContext ctx) {
         String url = authUrl + "?client_id=" + clientId +
@@ -1334,7 +1256,15 @@ private void httpComputeHandler(RoutingContext ctx) {
         this.accessToken=null;
         this.resultDA=null;
         this.stravaAccessToken=null;
-        ctx.response().setStatusCode(200).end("Success");
+        // ctx.response().setStatusCode(200).end("Success");
+            // Set CORS headers explicitly
+    ctx.response()
+        .putHeader("Access-Control-Allow-Origin", "http://localhost:3001")  // replace with frontend origin
+        .putHeader("Access-Control-Allow-Credentials", "true")
+        .putHeader("Access-Control-Allow-Headers", "Content-Type, Authorization")
+        .putHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+        .setStatusCode(200)
+        .end("Success");
     }
 
     //getPlayListsIds
@@ -1917,17 +1847,38 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
 }
 
 
-  private void getCollectedData(RoutingContext ctx){
-    JsonObject allQuery = new JsonObject();
-    mongoClient.find("shared_data_items", allQuery, h -> {
-      if (h.succeeded()) {
-        JsonArray response = new JsonArray(h.result());
-        ctx.response().setStatusCode(200).end(response.encode());
-      } else {
-        ctx.response().setStatusCode(500).end();
-      }
-    });
+  // private void getCollectedData(RoutingContext ctx){
+  //   JsonObject allQuery = new JsonObject();
+  //   mongoClient.find("shared_data_items", allQuery, h -> {
+  //     if (h.succeeded()) {
+  //       JsonArray response = new JsonArray(h.result());
+  //       ctx.response().setStatusCode(200).end(response.encode());
+  //     } else {
+  //       ctx.response().setStatusCode(500).end();
+  //     }
+  //   });
+  // }
+
+private void getCollectedData(RoutingContext ctx) {
+  String userId = ctx.get("userId"); // Get userId from context
+
+  if (userId == null || userId.isEmpty()) {
+    ctx.response().setStatusCode(401).end("Unauthorized: userId missing");
+    return;
   }
+
+  JsonObject query = new JsonObject().put("userId", userId); // Filter by userId
+
+  mongoClient.find("shared_data_items", query, h -> {
+    if (h.succeeded()) {
+      JsonArray response = new JsonArray(h.result());
+      ctx.response().setStatusCode(200).end(response.encode());
+    } else {
+      ctx.response().setStatusCode(500).end("Failed to fetch shared data");
+    }
+  });
+}
+
 
   private void userSettingsHandler(RoutingContext ctx) {
 
@@ -1965,56 +1916,39 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
     // catch(Exception e){
     // ctx.response().setStatusCode(500).end();
     // }
+    //logger.info("handler");
     logger.info("recieved meeage");
 
     JsonObject jsonObject;
     String client_id;
     try {
       jsonObject = ctx.getBodyAsJson();
+      // String jsonString = jsonObject.encodePrettily(); // Or use .encode() for compact format
+      // // Attempt to parse JSON
+      // logger.info(Integer.toString(jsonString.length()));
       client_id = jsonObject.getString("client_id");
-      logger.info(client_id);
+       logger.info(client_id);
     } catch (DecodeException e) {
       logger.error("Invalid JSON format");
       return;
     }
+    //logger.info("handler1");
     logger.info("forwarding to SP");
-    // var query = new JsonObject();
-    // mongoClient.find("service_providers", query)
-    //     .onSuccess(servProvData -> {
-    //       String connId = servProvData.get(0).getString("connId");
-    //       final String[] divided = divideString(jsonObject.encode());
-
     var query = new JsonObject();
     mongoClient.find("service_providers", query)
         .onSuccess(servProvData -> {
-            String connId = servProvData.get(0).getString("connId");
-            // Get current user ID
-            String userId = currentUserId; // This should be set during authentication
-            
-            // Include username in the response
-            final String[] divided = divideString(jsonObject.encode());
-
-
+          String connId = servProvData.get(0).getString("connId");
+          final String[] divided = divideString(jsonObject.encode());
           logger.info(Integer.toString(divided[0].length()));
           int length = jsonObject.encodePrettily().length();
           final int pieces = Math.max(length / 350000, 1); // Number of pieces to divide the string into
           final int n = divided.length;
           Thread thread = new Thread(() -> {
-            // for (int i = 0; i < n; i++) {
-            //   final String divided_str = divided[i];
-            //   sendBasicMessage(connId, "TRAIN_RESPONSE",
-            //       new JsonObject().put("id", i).put("total", pieces).put("value", divided_str).put("client_id", client_id), null);
-            // }
             for (int i = 0; i < n; i++) {
               final String divided_str = divided[i];
               sendBasicMessage(connId, "TRAIN_RESPONSE",
-                  new JsonObject()
-                      .put("id", i)
-                      .put("total", pieces)
-                      .put("value", divided_str)
-                      .put("client_id", userId)
-                      .put("username", userId), // Include username
-                  null);
+                  //new JsonObject().put("id", i).put("total", pieces).put("value", divided_str), null);
+                  new JsonObject().put("id", i).put("total", pieces).put("value", divided_str).put("client_id", client_id), null);
             }
           });
           thread.start();
@@ -2493,90 +2427,64 @@ private void saveLocationData(LocationData locationData, Handler<AsyncResult<Voi
        * }
        */
 
-      // case "TRAIN": {
-      //   JsonObject payloadData = (JsonObject) payload;
-      //   int id = payloadData.getInteger("id");
-      //   String client_id = payloadData.getString("client_id");
-      //   logger.info("Client: " + client_id + " Received segment ID: " + id);
-
-      //   int total = payloadData.getInteger("total");
-      //   String content = payloadData.getString("value");
-      //   // Get or create a map for storing segments for this specific connection
-      //   ConcurrentHashMap<Integer, String> segments = dataParts.computeIfAbsent(connId, k -> new ConcurrentHashMap<>());
-
-      //   // Store the current segment
-      //   segments.put(id, content);
-
-      //   // Check if all segments from 0 to total-1 are present
-      //   if (segments.size() == total
-      //       && segments.keySet().stream().sorted().reduce((a, b) -> a + 1 == b ? b : -1).orElse(-1) + 1 == total) {
-
-      //     logger.info("Client: " + client_id + userSettings.encode());
-      //     logger.info(Boolean.toString(String.valueOf(userSettings.getBoolean(client_id)).equals("true")));
-      //     logger.info(userSettings.toString());
-      //     if (String.valueOf(userSettings.getBoolean(client_id)).equals("true")) {
-
-      //       StringBuilder fullContent = new StringBuilder();
-      //       for (int i = 0; i < total; i++) {
-      //         fullContent.append(segments.get(i));
-      //       }
-
-      //       // Log that we are sending the complete payload
-      //       logger.info("Sending full payload");
-      //       JsonObject completeData = new JsonObject().put("completeData", fullContent.toString()).put("client_id", client_id);
-
-      //       WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
-      //       webClient.post(4600, "flclient", "/train")
-      //           .sendJsonObject(completeData)
-      //           .onSuccess(res -> logger.info("Payload sent successfully"))
-      //           .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
-      //     } else {
-      //       logger.info("Rejecting the Training");
-      //       JsonObject completeData = new JsonObject().put("value", "None").put("data",
-      //           new JsonObject().put("client_id", client_id));
-      //       WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
-      //       webClient.post(9080, "localhost", "/train-response")
-      //           .sendJsonObject(completeData)
-      //           .onSuccess(res -> logger.info("Payload sent successfully"))
-      //           .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
-      //     }
-      //     // Clear the segments map for this connection to free up memory
-      //     dataParts.remove(connId);
-      //   } else {
-      //     // Log waiting for more segments
-      //     logger.info("Waiting for more segments. Current count: " + segments.size() + "/" + total);
-      //   }
-
-      // }
-      //   break;
-
       case "TRAIN": {
-        JsonObject payloadData = (JsonObject)basicMessagePackage.getJsonObject("payload");
+        JsonObject payloadData = (JsonObject) payload;
         int id = payloadData.getInteger("id");
         String client_id = payloadData.getString("client_id");
-        String username = payloadData.getString("username", "User");
-        logger.info("Received training request for " + username + ", segment " + id);
-        
-        // Save incoming training data
-        String content = payloadData.getString("value");
+        logger.info("Client: " + client_id + " Received segment ID: " + id);
+
         int total = payloadData.getInteger("total");
-        int epochs = payloadData.getInteger("epochs", 3);
-        
-        // Process the training data - this would normally call trainClient
-        // For now, we'll just acknowledge it and send back a response
-        
-        // Send training response with username included
-        sendBasicMessage(connId, "TRAIN_RESPONSE",
-            new JsonObject()
-                .put("id", id)
-                .put("total", total)
-                .put("value", content)
-                .put("client_id", client_id)
-                .put("username", username),
-            null);
-        
+        String content = payloadData.getString("value");
+        // Get or create a map for storing segments for this specific connection
+        ConcurrentHashMap<Integer, String> segments = dataParts.computeIfAbsent(connId, k -> new ConcurrentHashMap<>());
+
+        // Store the current segment
+        segments.put(id, content);
+
+        // Check if all segments from 0 to total-1 are present
+        if (segments.size() == total
+            && segments.keySet().stream().sorted().reduce((a, b) -> a + 1 == b ? b : -1).orElse(-1) + 1 == total) {
+
+          logger.info("Client: " + client_id + userSettings.encode());
+          logger.info(Boolean.toString(String.valueOf(userSettings.getBoolean(client_id)).equals("true")));
+           logger.info(userSettings.toString());
+
+          if (String.valueOf(userSettings.getBoolean(client_id)).equals("true")) {
+
+            StringBuilder fullContent = new StringBuilder();
+            for (int i = 0; i < total; i++) {
+              fullContent.append(segments.get(i));
+            }
+
+            // Log that we are sending the complete payload
+            logger.info("Sending full payload");
+            //JsonObject completeData = new JsonObject().put("completeData", fullContent.toString());
+            JsonObject completeData = new JsonObject().put("completeData", fullContent.toString()).put("client_id", client_id);
+
+            WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
+            webClient.post(4600, "flclient", "/train")
+                .sendJsonObject(completeData)
+                .onSuccess(res -> logger.info("Payload sent successfully"))
+                .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
+          } else {
+            logger.info("Rejecting the Training");
+            JsonObject completeData = new JsonObject().put("value", "None").put("data",
+                new JsonObject().put("client_id", client_id));
+            WebClient webClient = WebClient.create(vertx, new WebClientOptions().setSsl(false));
+            webClient.post(9080, "localhost", "/train-response")
+                .sendJsonObject(completeData)
+                .onSuccess(res -> logger.info("Payload sent successfully"))
+                .onFailure(err -> logger.error("Failed to send payload: " + err.getMessage()));
+          }
+          // Clear the segments map for this connection to free up memory
+          dataParts.remove(connId);
+        } else {
+          // Log waiting for more segments
+          logger.info("Waiting for more segments. Current count: " + segments.size() + "/" + total);
+        }
+
+      }
         break;
-    }
       case "COMPUTE":
       {
         JsonObject userquery1 = new JsonObject().put("connId", connId);

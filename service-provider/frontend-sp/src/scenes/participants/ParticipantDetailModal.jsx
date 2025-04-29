@@ -1,4 +1,4 @@
-import { styled } from '@mui/system';
+// import { styled } from '@mui/system';
 // import { TextField , Backdrop, Fade, Modal, Card, CardContent, Button, IconButton, Typography, useTheme, Box } from "@mui/material";
 // import axios from 'axios'
 // import MyModal from '../../components/MyModal';
@@ -9,19 +9,10 @@ import { styled } from '@mui/system';
 //   console.log("detail modal", detailData);
 
 //   const deleteItem = async () => {
-//     // var response = await axios.delete(`${config.BACKEND_BASE_URL}/participants/${detailData._id}`);
-//     // onListingUpdate();
-//     // onClose();
-//     try {
-//       const response = await axios.delete(`${config.BACKEND_BASE_URL}/participants/${detailData._id}`);
-//       console.log("Participant deleted successfully:", response.data);
-//       onListingUpdate();
-//       onClose();
-//   } catch (error) {
-//       console.error("Error deleting participant:", error);
-//       alert("Failed to delete participant: " + (error.response?.data || error.message));
+//     var response = await axios.delete(`${config.BACKEND_BASE_URL}/participants/${detailData._id}`);
+//     onListingUpdate();
+//     onClose();
 //   }
-// }
 
 //   const containerStyle = {
 //     maxWidth: '500px', // Set the maximum width to 'sm' (small)
@@ -70,54 +61,72 @@ import { styled } from '@mui/system';
 
 // export default ParticipationDetailModal
 
-// Modify ParticipantDetailModal.jsx
-import { TextField, Backdrop, Fade, Modal, Card, CardContent, Button, IconButton, Typography, Box } from "@mui/material";
-import axios from 'axios';
-import MyModal from '../../components/MyModal';
-import MyModalContent from '../../components/MyModalContent';
-import config from '../../utils/config';
+
+import {
+  Fade,
+  Box,
+  Button,
+  Typography,
+} from "@mui/material";
+import axios from "axios";
+import MyModal from "../../components/MyModal";
+import MyModalContent from "../../components/MyModalContent";
+import config from "../../utils/config";
 
 const ParticipationDetailModal = ({ isOpen, onClose, detailData, onListingUpdate }) => {
   const deleteItem = async () => {
     try {
+      const id = detailData._id || detailData.id;
+      if (!id) {
+        alert("Participant ID is missing.");
+        return;
+      }
+
+      //await axios.delete(`${config.BACKEND_BASE_URL}/participants/${id}`);
       const response = await axios.delete(`${config.BACKEND_BASE_URL}/participants/${detailData._id}`);
-      // Immediately update UI without page refresh
+       console.log("Participant deleted successfully:", response.data);
       onListingUpdate();
       onClose();
     } catch (error) {
-      console.error("Error removing participant:", error);
+      console.error("Error deleting participant:", error);
+      alert("❌ Failed to delete participant. Check console for more details.");
     }
-  }
+  };
+
+  const epochSecondsToDateTimeString = (epochSeconds) => {
+    return new Date(epochSeconds * 1000).toLocaleString();
+  };
 
   return (
-    <MyModal
-      open={isOpen}
-      onClose={onClose}
-      closeAfterTransition
-    >
+    <MyModal open={isOpen} onClose={onClose} closeAfterTransition>
       <Fade in={isOpen}>
         <MyModalContent>
-          <h2>Participant #{detailData.number}</h2>
-          <Box style={{ maxWidth: '500px', backgroundColor: 'white' }}>
-            <Typography style={{ wordWrap: 'break-word', overflow: 'hidden' }}>
-              <strong>Join Date:</strong> {detailData.createdAtStr}
+          <Typography variant="h5" fontWeight="bold" mb={2}>
+            Participant #{detailData.number}
+          </Typography>
+
+          <Box sx={{ mb: 2, backgroundColor: "#fff", p: 2, borderRadius: 2 }}>
+            <Typography>
+              <strong>Join Date:</strong> {epochSecondsToDateTimeString(detailData.createdAt)}
             </Typography>
-            <Typography style={{ wordWrap: 'break-word', overflow: 'hidden' }}>
+            <Typography>
               <strong>Invitation used to Join:</strong> {detailData.invitationName}
             </Typography>
           </Box>
-          <Box style={{ padding: "10px" }}>
+
+          <Box sx={{ display: "flex", gap: 2 }}>
             <Button variant="contained" color="error" onClick={deleteItem}>
               Remove & Block
             </Button>
-            <Button variant="contained" onClick={onClose} color="secondary" style={{ marginLeft: '10px' }}>
+            <Button variant="outlined" onClick={onClose}>
               Close
             </Button>
           </Box>
         </MyModalContent>
       </Fade>
     </MyModal>
-  )
+  );
 };
 
 export default ParticipationDetailModal;
+

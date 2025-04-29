@@ -1,343 +1,231 @@
-import React, { useState, useEffect, useRef  } from 'react'
-import { Box, Stack } from '@mui/system'
-// import { useStateValue } from '../../state/state'
-import { useNavigate } from 'react-router-dom'
-import { TextField , Backdrop, Fade, Modal, Card, CardContent, Button, IconButton, Typography, useTheme } from "@mui/material";
-// import cachePull from '../../utils/cachePull'
-import { NavLink } from "react-router-dom";
-import config from '../../utils/config'
-import axios from 'axios'
-import { styled } from '@mui/system';
+import React, { useState, useEffect } from 'react';
+import {
+  Box,
+  Button,
+  TextField,
+  Typography,
+  Fade,
+  useTheme,
+} from '@mui/material';
+import { DataGrid } from '@mui/x-data-grid';
+import axios from 'axios';
+import config from '../../utils/config';
+import SectionCard from '../../components/SectionCard';
 import MyModal from '../../components/MyModal';
 import MyModalContent from '../../components/MyModalContent';
-import MyCard from '../../components/MyCard';
 import InvitationDetailModal from './InvitationDetailModal';
-import SectionCard from '../../components/SectionCard';
-import { DataGrid } from "@mui/x-data-grid";
 import ParticipationDetailModal from './ParticipantDetailModal';
 
-
 const ParticipantsPage = () => {
-    const theme = useTheme();
-    const colors = theme.palette;
-    // const [, dispatch] = useStateValue()
-    // const navigate = useNavigate()
+  const theme = useTheme();
 
-    const [invitations, setInvitations] = useState({});
-    const [participants, setParticipants] = useState([]);
+  const [invitations, setInvitations] = useState({});
+  const [participants, setParticipants] = useState([]);
+  const [newInvitationFormOpen, setNewInvitationFormOpen] = useState(false);
+  const [newInvitationFormData, setNewInvitationFormData] = useState({ name: '' });
+  const [invitationModalOpen, setInvitationModalOpen] = useState(false);
+  const [detailData, setDetailData] = useState({});
+  const [participantModalOpen, setParticipantModalOpen] = useState(false);
+  const [participantDetailData, setParticipantDetailData] = useState({});
+  const [searchText, setSearchText] = useState('');
 
-    const [newInvitationFormOpen, setNewInvitationFormOpen] = useState(false);
-    const [newInvitationFormData, setNewInvitationFormData] = useState({name: ""});
+  useEffect(() => {
+    updateInvitationsList();
+    document.title = 'Connections';
+  }, []);
 
-    const [invitationModalOpen, setInvitationModalOpen] = useState(false);
-    const [detailData, setDetailData] = useState({});
-
-    const [participantModalOpen, setParticipantModalOpen] = useState(false);
-    const [participantDetailData, setParticipantDetailData] = useState({});
-
-
-    // async function updateInvitationsList() {
-    //   const invitationsResponse = await axios.get(`${config.BACKEND_BASE_URL}/invitations`);
-    //   console.log("fetched invitations list:", invitationsResponse.data);
-
-    //   const invitationsMap = {};
-    //   for (const invitation of invitationsResponse.data){
-    //     const invitationKey = invitation.invitationKey ? invitation.invitationKey : "[not tracked]";
-    //     invitationsMap[invitationKey] = invitation;
-    //   }
-    //   setInvitations(invitationsMap);
-
-
-    //   const participantsResponse = await axios.get(`${config.BACKEND_BASE_URL}/participants`);
-    //   console.log("fetched participants list:", participantsResponse.data);
-    //   const participantsNew = participantsResponse.data;
-    //   for (var i = 0; i < participantsNew.length; i++){
-    //     const participant = participantsNew[i];
-    //     participant.number = i + 1;
-    //   }
-    //   setParticipants(participantsResponse.data);
-    // }
-
-
-// Modify the updateInvitationsList function in index.jsx
-// async function updateInvitationsList() {
-//   try {
-//     // Get latest invitations
-//     const invitationsResponse = await axios.get(`${config.BACKEND_BASE_URL}/invitations`);
-//     const invitationsMap = {};
-//     for (const invitation of invitationsResponse.data) {
-//       const invitationKey = invitation.invitationKey ? invitation.invitationKey : "[not tracked]";
-//       invitationsMap[invitationKey] = invitation;
-//     }
-//     setInvitations(invitationsMap);
-
-//     // Get latest participants
-//     const participantsResponse = await axios.get(`${config.BACKEND_BASE_URL}/participants`);
-//     const participantsNew = participantsResponse.data.map((participant, i) => ({
-//       ...participant,
-//       number: i + 1
-//     }));
-//     setParticipants(participantsNew);
-//   } catch (error) {
-//     console.error("Error updating listings:", error);
-//   }
-// }
-
-  // Enhanced function to handle immediate UI updates
-  function updateInvitationsList() {
-    // Don't use the Promise.all pattern to avoid unnecessary state batching
-    
-    // First, update the invitations state
-    axios.get(`${config.BACKEND_BASE_URL}/invitations`)
-      .then(invitationsResponse => {
-        console.log("Fetched invitations list:", invitationsResponse.data);
-
-        const invitationsMap = {};
-        for (const invitation of invitationsResponse.data) {
-          const invitationKey = invitation.invitationKey ? invitation.invitationKey : "[not tracked]";
-          invitationsMap[invitationKey] = invitation;
-        }
-        
-        // Update invitations state immediately
-        setInvitations(invitationsMap);
-      })
-      .catch(error => {
-        console.error("Error fetching invitations:", error);
-      });
-
-    // Then update the participants state
-    axios.get(`${config.BACKEND_BASE_URL}/participants`)
-      .then(participantsResponse => {
-        console.log("Fetched participants list:", participantsResponse.data);
-        
-        const participantsNew = participantsResponse.data;
-        for (var i = 0; i < participantsNew.length; i++) {
-          const participant = participantsNew[i];
-          participant.number = i + 1;
-        }
-        
-        // Update participants state immediately
-        setParticipants(participantsResponse.data);
-      })
-      .catch(error => {
-        console.error("Error fetching participants:", error);
-      });
-  }
-  
-
-// Set up polling for real-time updates
-useEffect(() => {
-  // Initial data load
-  updateInvitationsList();
-  
-  // Optional: Set up polling for real-time updates if needed
-  const intervalId = setInterval(updateInvitationsList, 5000); // Poll every 5 seconds
-  
-  return () => {
-    clearInterval(intervalId); // Clean up on component unmount
-  };
-}, []);
-    
-    const handleInputChange = (e) => {
-      const { name, value } = e.target;
-      setNewInvitationFormData({
-        ...newInvitationFormData,
-        [name]: value,
-      });
-    };
-
-    const handleSubmit = async () => {
-      const response = await axios.post(`${config.BACKEND_BASE_URL}/invitations`, newInvitationFormData);
-
-      // Close the modal
-      setNewInvitationFormOpen(false);
-
-      var newInvitation = response.data;
-      setDetailData(newInvitation);
-      setInvitationModalOpen(true);
-
-      updateInvitationsList();
-    };
-
-    const hasRan = useRef(false);
-    useEffect(() => {
-      if (!hasRan.current){
-        hasRan.current = true;
-
-        updateInvitationsList();
-      }
-  
-      document.title = 'Connections';
-      return () => {
-        document.title = 'TODO title';
-      };
-    }, []);
-
-
-
-    function epochSecondsToDateTimeString(epochSeconds) {
-      return new Date(epochSeconds * 1000).toLocaleString();
+  const updateInvitationsList = async () => {
+    const invitationsRes = await axios.get(`${config.BACKEND_BASE_URL}/invitations`);
+    const invitationMap = {};
+    for (const inv of invitationsRes.data) {
+      const key = inv.invitationKey ?? "[not tracked]";
+      invitationMap[key] = inv;
     }
+    setInvitations(invitationMap);
 
+    const participantsRes = await axios.get(`${config.BACKEND_BASE_URL}/participants`);
+    const processed = participantsRes.data.map((p, idx) => ({ ...p, number: idx + 1 }));
+    setParticipants(processed);
+  };
 
-    const columns = [  
-      { field: 'id', headerName: 'ID' },  
-      { field: 'createdAtStr', headerName: 'Join Date Time', flex: 1 },
-      { field: 'invitationName', headerName: 'Invitation Used', flex: 1 },  
-      { 
-        field: 'actions', 
-        headerName: 'Actions', 
-        width: 120,
-        renderCell: (params) => (
-          <Button 
-            variant="contained" 
-            size="small" 
-            color="error"
-            onClick={(e) => {
-              e.stopPropagation(); // Prevent row selection
-              handleDeleteParticipant(params.row);
-            }}
-          >
-            Remove
-          </Button>
-        ),
-      }
-      ];
-  
-    const rows = participants.map((participant, idx) => {
-      const invitation = invitations[participant.invitationKey];
-      const invitationName = invitation ? invitation.name : "[unknown invitation]";
-      const r = {
-        ...participant,
-        id: participant._id.substring(0, 8),
-        createdAtStr: epochSecondsToDateTimeString(participant.createdAt),
-        invitationName: invitationName,
-      };
-      console.log(r);
-      return r;
-    });
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewInvitationFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
+  const handleSubmit = async () => {
+    const res = await axios.post(`${config.BACKEND_BASE_URL}/invitations`, newInvitationFormData);
+    setNewInvitationFormOpen(false);
+    setDetailData(res.data);
+    setInvitationModalOpen(true);
+    updateInvitationsList();
+  };
 
-    // Delete participant
-    const handleDeleteParticipant = async (participant) => {
-      if (window.confirm(`Are you sure you want to remove participant ${participant.id}?`)) {
-        try {
-          await axios.delete(`${config.BACKEND_BASE_URL}/participants/${participant._id}`);
-          
-          // Update the local state immediately
-          setParticipants(prevParticipants => 
-            prevParticipants.filter(p => p._id !== participant._id)
-          );
-          
-          // If this participant was created using an invitation, also update invitations list
-          if (participant.invitationKey && invitations[participant.invitationKey]) {
-            updateInvitationsList();
-          }
-        } catch (error) {
-          console.error("Failed to delete participant:", error);
-        }
-      }
-    };
+  const epochSecondsToDateTimeString = (epochSeconds) =>
+    new Date(epochSeconds * 1000).toLocaleString();
 
-    // <div style={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'column' }}>
-    //         {participants.map(item => {
-    //           return (
-    //             <MyCard key={item._id} onClick={() => { setDetailData(item); setDetailModalOpen(true) }} style={{cursor: 'pointer'}}>
-    //               <CardContent>
-    //                 {/* TODO click to bringup detail modal - then theres a list of toggles for each requested permission (which the serv prov provides/responds again from the first/initial connection message). Delete button here. */}
-    //                 <Typography component="div">
-    //                   {item.name} - {item.createdAt}
-    //                 </Typography>
-    //               </CardContent>
-    //             </MyCard>
-    //           );
-    //         })}
-    //       </div>
-    return (
-      <div>
-        <SectionCard>
-          <Typography variant="h3" sx={{ color: "#000000"}}>
-            Connected Participants
-          </Typography>
-          {/* TODO refresh button here */}
+  const filteredInvitations = Object.entries(invitations).filter(([key, item]) =>
+    item.name.toLowerCase().includes(searchText.toLowerCase())
+  );
 
-          <Box sx={{ height: 300, width: '100%', maxWidth: 800 }}>
-            <DataGrid  
-            rows={rows} 
+  const columns = [
+    { field: 'id', headerName: 'ID', flex: 1 },
+    { field: 'createdAtStr', headerName: 'Join Date Time', flex: 1.5 },
+    { field: 'invitationName', headerName: 'Invitation Used', flex: 1.5 },
+  ];
+
+  const rows = participants.map((p) => ({
+    ...p,
+    id: p._id.substring(0, 8),
+    createdAtStr: epochSecondsToDateTimeString(p.createdAt),
+    invitationName: invitations[p.invitationKey]?.name || "[unknown invitation]",
+  }));
+
+  return (
+    <div>
+      <SectionCard>
+        <Typography variant="h4" fontWeight="bold" color="black" mb={1}>
+          Connected Participants
+        </Typography>
+        <Typography variant="body2" color="text.secondary" mb={2}>
+          View all participants currently connected to your system.
+        </Typography>
+
+        <Box sx={{ height: 420, width: '100%', backgroundColor: '#ffffff', borderRadius: 2 }}>
+          <DataGrid
+            rows={rows}
             columns={columns}
-            onRowClick={(p) => { setParticipantDetailData(p.row); setParticipantModalOpen(true); }}
+            onRowClick={(p) => {
+              setParticipantDetailData(p.row);
+              setParticipantModalOpen(true);
+            }}
             disableSelectionOnClick
-            rowSelectionModel={[]} 
-             />
-          </Box>
+            rowSelectionModel={[]}
+            sx={{
+              border: 'none',
+              backgroundColor: '#ffffff',
+              '& .MuiDataGrid-columnHeaders': {
+                backgroundColor: '#f0f4ff',
+                color: '#000',
+                fontWeight: 'bold',
+              },
+              '& .MuiDataGrid-cell': {
+                color: '#000',
+              },
+              '& .MuiTablePagination-root': {
+                backgroundColor: '#fff',
+              },
+            }}
+          />
+        </Box>
 
-          <ParticipationDetailModal isOpen={participantModalOpen} onClose={() => setParticipantModalOpen(false)} detailData={participantDetailData} onListingUpdate={updateInvitationsList} />
-        </SectionCard>
+        <ParticipationDetailModal
+          isOpen={participantModalOpen}
+          onClose={() => setParticipantModalOpen(false)}
+          detailData={participantDetailData}
+          onListingUpdate={updateInvitationsList}
+        />
+      </SectionCard>
+
+      <SectionCard>
+        <Typography variant="h4" fontWeight="bold" color="black" mb={1}>
+          Connection Invitations
+        </Typography>
+        <Typography variant="body2" color="text.secondary" mb={2}>
+          Create and manage connection invites.
+        </Typography>
+
+        <TextField
+          placeholder="Search by invitation name..."
+          variant="outlined"
+          fullWidth
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          sx={{ mb: 2, backgroundColor: '#ffffff' }}
+        />
+
+        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+          {filteredInvitations.map(([key, item]) => (
+            <Box
+              key={key}
+              onClick={() => {
+                setDetailData(item);
+                setInvitationModalOpen(true);
+              }}
+              sx={{
+                backgroundColor: '#ffffff',
+                color: '#000',
+                borderRadius: 1,
+                p: 1.5,
+                cursor: 'pointer',
+                boxShadow: 1,
+                border: '1px solid #e0e0e0',
+                '&:hover': { backgroundColor: '#f5f5f5' },
+              }}
+            >
+              <Typography fontWeight="bold">{item.name}</Typography>
+              <Typography fontStyle="italic" fontSize="0.9rem">
+                (created {epochSecondsToDateTimeString(item.createdAt)})
+              </Typography>
+            </Box>
+          ))}
+        </Box>
+
+        <Button
+  onClick={() => setNewInvitationFormOpen(true)}
+  sx={{
+    mt: 2,
+    backgroundColor: '#3366ee',
+    color: '#fff',
+    fontWeight: 'bold',
+    px: 3,
+    py: 1.2,
+    borderRadius: '12px',
+    textTransform: 'none',
+    boxShadow: '0px 4px 12px rgba(0, 0, 0, 0.1)',
+    '&:hover': {
+      backgroundColor: '#295bcc',
+    },
+  }}
+>
+  📩 Create Invitation
+</Button>
 
 
-
-        <SectionCard>
-          <Typography variant="h3" sx={{ color: "#000000"}}>
-            Connection Invitations
-          </Typography>
-
-          <div style={{ display: 'flex', flexWrap: 'wrap', flexDirection: 'column' }}>
-            {Object.entries(invitations).map(([key, item]) => {
-              return (
-                <MyCard key={key} onClick={() => { setDetailData(item); setInvitationModalOpen(true) }} style={{cursor: 'pointer'}}>
-                  <CardContent>
-                    {/* TODO click to bringup detail modal - then theres a list of toggles for each requested permission (which the serv prov provides/responds again from the first/initial connection message). Delete button here. */}
-                    <Typography component="div">
-                      {item.name} <i>(created {epochSecondsToDateTimeString(item.createdAt)})</i>
-                    </Typography>
-                  </CardContent>
-                </MyCard>
-              );
-            })}
-          </div>
-
-          <Button
-            sx={{ display: "flex", justifyContent: "center", alignItems: "center" }}
-            variant="contained"
-            onClick={() => setNewInvitationFormOpen(true)}>
-              Create Invitation
-          </Button>
-
-
-          <MyModal
-            open={newInvitationFormOpen}
-            onClose={() => setNewInvitationFormOpen(false)}
-            closeAfterTransition
-          >
-            <Fade in={newInvitationFormOpen}>
-              <MyModalContent>
-                <h2>Make a Connection Invitation</h2>
-                
-                <TextField
-                  label="Invitation Name (for internal record keeping)"
-                  name="name"
-                  value={newInvitationFormData.name}
-                  onChange={handleInputChange}
-                  fullWidth
-                  autoComplete="off"
-                  margin="normal"
-                />
-
+        <MyModal open={newInvitationFormOpen} onClose={() => setNewInvitationFormOpen(false)}>
+          <Fade in={newInvitationFormOpen}>
+            <MyModalContent>
+              <Typography variant="h5" fontWeight="bold">Make a Connection Invitation</Typography>
+              <TextField
+                label="Invitation Name (for internal record keeping)"
+                name="name"
+                value={newInvitationFormData.name}
+                onChange={handleInputChange}
+                fullWidth
+                autoComplete="off"
+                margin="normal"
+              />
+              <Box sx={{ display: 'flex', gap: 2, mt: 2 }}>
                 <Button variant="contained" onClick={handleSubmit}>
                   Create
                 </Button>
-                <Button variant="contained" onClick={() => setNewInvitationFormOpen(false)} color="secondary">
+                <Button variant="outlined" color="secondary" onClick={() => setNewInvitationFormOpen(false)}>
                   Cancel
                 </Button>
-              </MyModalContent>
-            </Fade>
-          </MyModal>
+              </Box>
+            </MyModalContent>
+          </Fade>
+        </MyModal>
 
-          <InvitationDetailModal isOpen={invitationModalOpen} onClose={() => setInvitationModalOpen(false)} detailData={detailData} onListingUpdate={updateInvitationsList} />
+        <InvitationDetailModal
+          isOpen={invitationModalOpen}
+          onClose={() => setInvitationModalOpen(false)}
+          detailData={detailData}
+          onListingUpdate={updateInvitationsList}
+        />
+      </SectionCard>
+    </div>
+  );
+};
 
-        </SectionCard>
-      </div>
-    );
-}
-
-export default ParticipantsPage
+export default ParticipantsPage;
