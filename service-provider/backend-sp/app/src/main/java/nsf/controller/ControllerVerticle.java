@@ -67,6 +67,7 @@ public class ControllerVerticle extends AbstractVerticle {
 
 
     private Boolean isUsingCredentials;
+    private long startTime;
 
 
     public ControllerVerticle(MongoClient mongoClient, AriesClient ariesClient) {
@@ -1148,9 +1149,12 @@ public class ControllerVerticle extends AbstractVerticle {
     }
 
     private void computeHandlerNew(RoutingContext ctx) {
+        startTime = System.nanoTime();
+        logger.info("Compute Start time" + startTime);
         logger.info("Handler started: Fetching data from UserAccessControls");
         JsonObject requestBody = ctx.getBodyAsJson();
         String userIdNew = requestBody.getString("userId");
+        String use_nitro = requestBody.getString("use_nitro");
 
         JsonObject query = new JsonObject().put("userId", userIdNew);
 
@@ -1181,8 +1185,11 @@ public class ControllerVerticle extends AbstractVerticle {
 
                         logger.info("Compute called for userId: " + userId);
                         logger.info("Access List: " + accessList);
-
-                        sendBasicMessage(userId, "COMPUTENEW", new JsonObject(accessList), null);
+                        JsonObject access = new JsonObject(accessList);
+                        JsonObject datawrapper = new JsonObject()
+                                .put("accesslist", access)
+                                .put("use_nitro", use_nitro); //change it to actual var
+                        sendBasicMessage(userId, "COMPUTENEW", datawrapper, null);
                     }
 
                     ctx.response().setStatusCode(200).end();
@@ -1523,6 +1530,12 @@ public class ControllerVerticle extends AbstractVerticle {
                     computeResponseData.getMap().forEach((key, value) -> {
                         computationLog.put(key, value);
                     });
+                    long endTime = System.nanoTime();
+                    logger.info("Compute End time" + endTime);
+                    long duration = endTime - startTime;
+
+                    System.out.println("Execution time: " + duration + " nanoseconds");
+                    System.out.println("Execution time: " + (float)duration / 1000000000 + " seconds");
                     //computationLog = computeResponseData.copy();
                     // return computeResponseData;
                 }

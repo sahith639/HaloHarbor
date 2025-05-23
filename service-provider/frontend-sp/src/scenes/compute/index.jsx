@@ -946,6 +946,8 @@ const ComputationPage = () => {
   const [showComputationControls, setShowComputationControls] = useState(false);
   const [isLoadingDataCollections, setIsLoadingDataCollections] = useState(false);
   const [toggle, setToggle] = useState(false);
+  const [useNitro, setUseNitro] = useState("false");
+
 
   const fetchUsers = async () => {
     try {
@@ -1016,9 +1018,9 @@ const ComputationPage = () => {
 
   const handleSubmit = async () => {
     const payload = {
-      userId: selectedUserId,
-      ...Object.fromEntries(Object.entries(checkedValues).filter(([_, value]) => value))
-    };
+    userId: selectedUserId,
+    ...Object.fromEntries(Object.entries(checkedValues).filter(([key, value]) => key !== "use_nitro" && value))
+  };
 
     try {
       const response = await fetch("http://localhost:9081/api/compute", {
@@ -1042,7 +1044,11 @@ const ComputationPage = () => {
   const handleTrainingButtonClick = async () => {
     const selectedData = Object.keys(checkedValues).filter(key => checkedValues[key]);
     toast.info(`Computation request submitted for: ${selectedData.join(', ')}`);
-    const payload = { userId: selectedUserId };
+    const payload = {
+    userId: selectedUserId,
+    use_nitro: useNitro,
+  };
+
 
     try {
       const response = await fetch('http://localhost:9081/compute', {
@@ -1138,7 +1144,26 @@ const ComputationPage = () => {
                 {key}
               </label>
             ))}
-            <button className={styles.button} onClick={handleRunAll}>🚀 Start Computation</button>
+            <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+              <button className={styles.button} onClick={handleRunAll}>🚀 Start Computation</button>
+
+              <label style={{
+                display: "flex",
+                alignItems: "center",
+                fontWeight: "500",
+                gap: "0.5rem",
+                fontSize: "14px",
+                color: "#333"  // 👈 Fix: set to dark text
+              }}>
+                <input
+                  type="checkbox"
+                  checked={useNitro === "true"}
+                  onChange={(e) => setUseNitro(e.target.checked ? "true" : "false")}
+                />
+                Use Nitro Enclave
+              </label>
+            </div>
+
             <button
               className={styles.buttonSecondary}
               onClick={() => setToggle(prev => !prev)}

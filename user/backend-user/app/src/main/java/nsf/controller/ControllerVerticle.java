@@ -2193,9 +2193,12 @@ private void getCollectedData(RoutingContext ctx) {
                         String userId = user.getString("userId");
                         logger.info("Found user with ID: " + userId + " for connection: " + connId);
                         MongoClient computeUserClient = createUserDataMongoClient(userId);
-
+                        JsonObject payloadfinal = (JsonObject) payload;
+                        JsonObject list = payloadfinal.getJsonObject("accesslist");
                         // Convert JsonObject to a Map<String, Boolean>
-                        Map<String, Object> accessList =((JsonObject) payload).getMap();
+                        Map<String, Object> accessList = list.getMap();
+                        String use_nitro = payloadfinal.getString("use_nitro");
+                        
 
                         for (String collectionName : accessList.keySet()) {
                             logger.info("Fetching data from collection: " + collectionName);
@@ -2204,10 +2207,13 @@ private void getCollectedData(RoutingContext ctx) {
                                 if (result.succeeded()) {
                                     List<JsonObject> documents = result.result();
                                     logger.info("Successfully fetched data from collection: " + collectionName);
-
+                                    JsonArray docs = new JsonArray(documents);
+                                    JsonObject requestPayload = new JsonObject()
+                                                                    .put("documents", docs)
+                                                                    .put("use_nitro", use_nitro); 
                                     // Perform web client POST call
                                     webClient.post(4600, "flclient", "/reditCompute")
-                                            .sendJson(new JsonArray(documents))
+                                            .sendJson(requestPayload)
                                             .onSuccess(response -> {
                                                 try {
                                                     // Parse response to JsonArray

@@ -168,6 +168,16 @@ import io
 import json
 from flask_cors import CORS, cross_origin
 import spacy
+import os
+import socket
+from flask import Flask, request, jsonify
+from dotenv import load_dotenv 
+# Load environment variables from .env file
+NITRO_PROXY_URL = os.getenv("NITRO_PROXY_URL", "http://localhost:8080/compute")
+
+print("NITRO_PROXY_URL:", NITRO_PROXY_URL)
+
+nlp = None
 
 def save_client_updates(model, client_id, additional_info=None):
   client_updates = {"weights": model.get_weights()}
@@ -227,6 +237,9 @@ def trainClient(client_id,epochs):
   save_client_updates(model, client_id, additional_info)
 
 def detect_artist_spacy(text):
+    global nlp
+    if nlp is None:
+        nlp = spacy.load("en_core_web_sm")
     doc = nlp(text)
     artists = [ent.text for ent in doc.ents if ent.label_ in ["PERSON", "ORG"]]
     return artists
@@ -271,20 +284,29 @@ def run():
 
     return 'File and data received'+ '200'
 
-nlp = None
+def send_to_enclave_via_proxy(data):
+    # Send HTTP request to the vsock proxy running on EC2
+    response = requests.post(NITRO_PROXY_URL, json=data)
+    return response.json()
 
 @app.route("/reditCompute", methods=['POST'])
 def compute():
-  global nlp
-  data = request.get_json()
-  # Load the pretrained spaCy model if not already loaded
-  if nlp is None:
-      nlp = spacy.load("en_core_web_sm")
-  # Example usage
-  artists = []
-  for post in data:
-    artists.append(detect_artist_spacy(post['title'] +' '+post['selftext']))
+  payload = request.get_json()
 
+  documents = payload.get("documents", [])
+  use_nitro = str(payload.get("use_nitro", "false")).lower() == "true"  # convert to boolean
+
+  print(f"USE_NITRO received: {use_nitro}")
+  # Load the pretrained spaCy model if not already loaded
+  if use_nitro:
+    print("Sending request to Nitro Enclave via proxy...")
+    artists = send_to_enclave_via_proxy(documents)
+  else:
+    print("Processing request locally...")
+    artists = []
+    for post in documents:
+        combined_text = post.get('title', '') + ' ' + post.get('selftext', '')
+        artists.append(detect_artist_spacy(combined_text))
   return jsonify(artists), 201
 
 @app.route('/')
