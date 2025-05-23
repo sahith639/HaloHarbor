@@ -302,7 +302,7 @@ router.route().handler(CorsHandler.create("*")
       router.get("/oauth/strava/athleteClubs").handler(this::getAthleteClubs);
 
     //userSettings = new JsonObject().put("0",true).put("1",true).put("2",true);
-    userSettings = new JsonObject().put("129b5297-e2af-4f87-a566-8c05422bb769",true).put("4d8c4a06-93cc-4d4c-a853-0d6463a29d77",true);
+    userSettings = new JsonObject().put("6b424d8c-852e-4220-a73f-f13405f27f80",true).put("d1b888af-1f95-4f25-8252-29e29efa10d3",true);
     int port = Integer.parseInt(System.getenv().getOrDefault("PORT", "9080"));
     vertx.createHttpServer()
         .requestHandler(router)
